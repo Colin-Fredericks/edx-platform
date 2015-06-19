@@ -9,12 +9,12 @@ from opaque_keys.edx.keys import CourseKey
 from xmodule.modulestore.django import modulestore
 from enrollment.errors import (
     CourseNotFoundError, CourseEnrollmentClosedError, CourseEnrollmentFullError,
-    CourseEnrollmentExistsError, UserNotFoundError,
+    CourseEnrollmentExistsError, UserNotFoundError, InvalidEnrollmentAttributes
 )
 from enrollment.serializers import CourseEnrollmentSerializer, CourseField
 from student.models import (
     CourseEnrollment, NonExistentCourseError, EnrollmentClosedError,
-    CourseFullError, AlreadyEnrolledError,
+    CourseFullError, AlreadyEnrolledError, CourseEnrollmentAttribute
 )
 
 log = logging.getLogger(__name__)
@@ -136,10 +136,76 @@ def update_course_enrollment(username, course_id, mode=None, is_active=None):
         return None
 
 
+def add_or_update_enrollment_attr(user_id, course_id, attributes):
+    """Set enrollment attributes for the enrollment of given user in the
+    course provided.
+
+    Args:
+        course_id (str): The Course to set enrollment attributes for.
+        user_id (str): The User to set enrollment attributes for.
+        attributes (list): Attributes to be set.
+
+    Example:
+        >>>add_or_update_enrollment_attr(
+            "Bob",
+            "edX/DemoX/2014T2",
+            [
+                {
+                    "namespace": "credit",
+                    "name": "provider_id",
+                    "value": "hogwarts",
+                },
+            ]
+        )
+    """
+    course_key = CourseKey.from_string(course_id)
+    try:
+        user = User.objects.get(username=user_id)
+    except User.DoesNotExist:
+        msg = u"Not user with username '{username}' found.".format(username=user_id)
+        log.warn(msg)
+        raise UserNotFoundError(msg)
+
+    enrollment = CourseEnrollment.get_enrollment(user, course_key)
+    for attribute in attributes:
+        if not _invalidate_attributes(attribute):
+            CourseEnrollmentAttribute.set_enrollment_attribute(
+                enrollment, attribute['value'], attribute['namespace'], attribute['name']
+            )
+
+
 def _update_enrollment(enrollment, is_active=None, mode=None):
     enrollment.update_enrollment(is_active=is_active, mode=mode)
     enrollment.save()
     return CourseEnrollmentSerializer(enrollment).data  # pylint: disable=no-member
+
+
+def _invalidate_attributes(attribute):
+    """Validate enrollment attributes
+
+    Args:
+        attributes(dict): dict of attribute
+
+    Return:
+        list of invalid attributes
+    """
+    invalid_attributes = []
+    if "namespace" not in attribute:
+        msg = u"namespace not in enrollment attribute"
+        log.warn(msg)
+        invalid_attributes.append("namespace")
+        raise InvalidEnrollmentAttributes(msg)
+    if "name" not in attribute:
+        msg = u"name not in enrollment attribute"
+        log.warn(msg)
+        invalid_attributes.append("name")
+        raise InvalidEnrollmentAttributes(msg)
+    if "value" not in attribute:
+        msg = u"value not in enrollment attribute"
+        log.warn(msg)
+        invalid_attributes.append("value")
+        raise InvalidEnrollmentAttributes(msg)
+    return invalid_attributes
 
 
 def get_course_enrollment_info(course_id, include_expired=False):

@@ -62,7 +62,12 @@ class EnrollmentTestMixin(object):
             'course_details': {
                 'course_id': course_id
             },
-            'user': username
+            'user': username,
+            'enrollment_attributes': [{
+                "namespace": "credit",
+                "name": "provider_id",
+                "value": "hogwarts",
+            }]
         }
 
         if is_active is not None:
