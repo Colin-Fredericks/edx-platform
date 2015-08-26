@@ -208,11 +208,6 @@ class TrueFalseResponseTest(ResponseTest):
         self.assert_grade(problem, 'choice_foil_4', 'incorrect')
         self.assert_grade(problem, 'not_a_choice', 'incorrect')
 
-    def test_single_correct_response(self):
-        problem = self.build_problem(choices=[True, False])
-        self.assert_grade(problem, 'choice_0', 'correct')
-        self.assert_grade(problem, ['choice_0'], 'correct')
-
 
 class ImageResponseTest(ResponseTest):
     xml_factory_class = ImageResponseXMLFactory
@@ -398,8 +393,10 @@ class OptionResponseTest(ResponseTest):
     xml_factory_class = OptionResponseXMLFactory
 
     def test_grade(self):
-        problem = self.build_problem(options=["first", "second", "third"],
-                                     correct_option="second")
+        problem = self.build_problem(
+            options=["first", "second", "third"],
+            correct_option="second"
+        )
 
         # Assert that we get the expected grades
         self.assert_grade(problem, "first", "incorrect")
@@ -482,8 +479,10 @@ class OptionResponseTest(ResponseTest):
 
     def test_quote_option(self):
         # Test that option response properly escapes quotes inside options strings
-        problem = self.build_problem(options=["hasnot", "hasn't", "has'nt"],
-                                     correct_option="hasn't")
+        problem = self.build_problem(
+            options=["hasnot", "hasn't", "has'nt"],
+            correct_option="hasn't"
+        )
 
         # Assert that correct option with a quote inside is marked correctly
         self.assert_grade(problem, "hasnot", "incorrect")
@@ -551,10 +550,12 @@ class FormulaResponseTest(ResponseTest):
         sample_dict = {'x': (-10, 10), 'y': (-10, 10)}
 
         # The expected solution is numerically equivalent to x+2y
-        problem = self.build_problem(sample_dict=sample_dict,
-                                     num_samples=10,
-                                     tolerance=0.01,
-                                     answer="x+2*y")
+        problem = self.build_problem(
+            sample_dict=sample_dict,
+            num_samples=10,
+            tolerance=0.01,
+            answer="x+2*y"
+        )
 
         # Expect an equivalent formula to be marked correct
         # 2x - x + y + y = x + 2y
@@ -579,23 +580,29 @@ class FormulaResponseTest(ResponseTest):
                  ('2*y', 'missing_x', 'Try including the variable x')]
 
         # The expected solution is numerically equivalent to x+2y
-        problem = self.build_problem(sample_dict=sample_dict,
-                                     num_samples=10,
-                                     tolerance=0.01,
-                                     answer="x+2*y",
-                                     hints=hints)
+        problem = self.build_problem(
+            sample_dict=sample_dict,
+            num_samples=10,
+            tolerance=0.01,
+            answer="x+2*y",
+            hints=hints
+        )
 
         # Expect to receive a hint  if we add an extra y
         input_dict = {'1_2_1': "x + 2*y + y"}
         correct_map = problem.grade_answers(input_dict)
-        self.assertEquals(correct_map.get_hint('1_2_1'),
-                          'Check the coefficient of y')
+        self.assertEquals(
+            correct_map.get_hint('1_2_1'),
+            'Check the coefficient of y'
+        )
 
         # Expect to receive a hint if we leave out x
         input_dict = {'1_2_1': "2*y"}
         correct_map = problem.grade_answers(input_dict)
-        self.assertEquals(correct_map.get_hint('1_2_1'),
-                          'Try including the variable x')
+        self.assertEquals(
+            correct_map.get_hint('1_2_1'),
+            'Try including the variable x'
+        )
 
     def test_script(self):
         """
@@ -609,11 +616,13 @@ class FormulaResponseTest(ResponseTest):
         sample_dict = {'x': (-10, 10)}
 
         # The expected solution is numerically equivalent to 2*x
-        problem = self.build_problem(sample_dict=sample_dict,
-                                     num_samples=10,
-                                     tolerance=0.01,
-                                     answer="$calculated_ans",
-                                     script=script)
+        problem = self.build_problem(
+            sample_dict=sample_dict,
+            num_samples=10,
+            tolerance=0.01,
+            answer="$calculated_ans",
+            script=script
+        )
 
         # Expect that the inputs are graded correctly
         self.assert_grade(problem, '2*x', 'correct')
@@ -628,10 +637,12 @@ class FormulaResponseTest(ResponseTest):
         sample_dict = {'x': (1, 2)}
 
         # Test problem
-        problem = self.build_problem(sample_dict=sample_dict,
-                                     num_samples=10,
-                                     tolerance="1%",
-                                     answer="x")
+        problem = self.build_problem(
+            sample_dict=sample_dict,
+            num_samples=10,
+            tolerance="1%",
+            answer="x"
+        )
         # Expect such a large answer to be marked incorrect
         input_formula = "x*1e999"
         self.assert_grade(problem, input_formula, "incorrect")
@@ -647,10 +658,12 @@ class FormulaResponseTest(ResponseTest):
         sample_dict = {'x': (1, 2)}
 
         # Test problem
-        problem = self.build_problem(sample_dict=sample_dict,
-                                     num_samples=10,
-                                     tolerance="1%",
-                                     answer="x")
+        problem = self.build_problem(
+            sample_dict=sample_dict,
+            num_samples=10,
+            tolerance="1%",
+            answer="x"
+        )
         # Expect an incorrect answer (+ nan) to be marked incorrect
         # Right now this evaluates to 'nan' for a given x (Python implementation-dependent)
         input_formula = "10*x + 0*1e999"
@@ -664,10 +677,12 @@ class FormulaResponseTest(ResponseTest):
         See if division by zero raises an error.
         """
         sample_dict = {'x': (1, 2)}
-        problem = self.build_problem(sample_dict=sample_dict,
-                                     num_samples=10,
-                                     tolerance="1%",
-                                     answer="x")  # Answer doesn't matter
+        problem = self.build_problem(
+            sample_dict=sample_dict,
+            num_samples=10,
+            tolerance="1%",
+            answer="x"
+        )  # Answer doesn't matter
         input_dict = {'1_2_1': '1/0'}
         self.assertRaises(StudentInputError, problem.grade_answers, input_dict)
 
@@ -975,14 +990,18 @@ class StringResponseTest(ResponseTest):
         # We should get a hint for Wisconsin
         input_dict = {'1_2_1': 'Wisconsin'}
         correct_map = problem.grade_answers(input_dict)
-        self.assertEquals(correct_map.get_hint('1_2_1'),
-                          "The state capital of Wisconsin is Madison")
+        self.assertEquals(
+            correct_map.get_hint('1_2_1'),
+            "The state capital of Wisconsin is Madison"
+        )
 
         # We should get a hint for Minnesota
         input_dict = {'1_2_1': 'Minnesota'}
         correct_map = problem.grade_answers(input_dict)
-        self.assertEquals(correct_map.get_hint('1_2_1'),
-                          "The state capital of Minnesota is St. Paul")
+        self.assertEquals(
+            correct_map.get_hint('1_2_1'),
+            "The state capital of Minnesota is St. Paul"
+        )
 
         # We should NOT get a hint for Michigan (the correct answer)
         input_dict = {'1_2_1': 'Michigan'}
@@ -1048,10 +1067,12 @@ class CodeResponseTest(ResponseTest):
         super(CodeResponseTest, self).setUp()
 
         grader_payload = json.dumps({"grader": "ps04/grade_square.py"})
-        self.problem = self.build_problem(initial_display="def square(x):",
-                                          answer_display="answer",
-                                          grader_payload=grader_payload,
-                                          num_responses=2)
+        self.problem = self.build_problem(
+            initial_display="def square(x):",
+            answer_display="answer",
+            grader_payload=grader_payload,
+            num_responses=2
+        )
 
     @staticmethod
     def make_queuestate(key, time):
@@ -1171,9 +1192,11 @@ class CodeResponseTest(ResponseTest):
         '''
         problem_file = os.path.join(os.path.dirname(__file__), "test_files/filename_convert_test.txt")
         with open(problem_file) as fp:
-            answers_with_file = {'1_2_1': 'String-based answer',
-                                 '1_3_1': ['answer1', 'answer2', 'answer3'],
-                                 '1_4_1': [fp, fp]}
+            answers_with_file = {
+                '1_2_1': 'String-based answer',
+                '1_3_1': ['answer1', 'answer2', 'answer3'],
+                '1_4_1': [fp, fp]
+            }
             answers_converted = convert_files_to_filenames(answers_with_file)
             self.assertEquals(answers_converted['1_2_1'], 'String-based answer')
             self.assertEquals(answers_converted['1_3_1'], ['answer1', 'answer2', 'answer3'])
@@ -1236,8 +1259,10 @@ class ChoiceResponseTest(ResponseTest):
     xml_factory_class = ChoiceResponseXMLFactory
 
     def test_radio_group_grade(self):
-        problem = self.build_problem(choice_type='radio',
-                                     choices=[False, True, False])
+        problem = self.build_problem(
+            choice_type='radio',
+            choices=[False, True, False]
+        )
 
         # Check that we get the expected results
         self.assert_grade(problem, 'choice_0', 'incorrect')
@@ -1248,8 +1273,10 @@ class ChoiceResponseTest(ResponseTest):
         self.assert_grade(problem, 'choice_3', 'incorrect')
 
     def test_checkbox_group_grade(self):
-        problem = self.build_problem(choice_type='checkbox',
-                                     choices=[False, True, True])
+        problem = self.build_problem(
+            choice_type='checkbox',
+            choices=[False, True, True]
+        )
 
         # Check that we get the expected results
         # (correct if and only if BOTH correct choices chosen)
@@ -1911,8 +1938,10 @@ class CustomResponseTest(ResponseTest):
                 return retval
         """)
 
-        problem = self.build_problem(script=script, cfn="check_func",
-                                     expect="42", num_inputs=2)
+        problem = self.build_problem(
+            script=script, cfn="check_func",
+            expect="42", num_inputs=2
+        )
 
         # Correct answer -- expect both inputs marked correct
         input_dict = {'1_2_1': '42', '1_2_2': '42'}
@@ -1973,8 +2002,11 @@ class CustomResponseTest(ResponseTest):
                             {'ok': check4,  'msg': 'Feedback 4'} ] }
             """)
 
-        problem = self.build_problem(script=script,
-                                     cfn="check_func", num_inputs=4)
+        problem = self.build_problem(
+            script=script,
+            cfn="check_func",
+            num_inputs=4
+        )
 
         # Grade the inputs (one input incorrect)
         input_dict = {'1_2_1': '-999', '1_2_2': '2', '1_2_3': '3', '1_2_4': 'four'}
@@ -2064,7 +2096,13 @@ class CustomResponseTest(ResponseTest):
                         return {'ok': retval, 'msg': 'Message text'}
                     """)
 
-        problem = self.build_problem(script=script, cfn="check_func", expect="42", options="xyzzy", cfn_extra_args="options dynamath")
+        problem = self.build_problem(
+            script=script,
+            cfn="check_func",
+            expect="42",
+            options="xyzzy",
+            cfn_extra_args="options dynamath"
+        )
 
         # Correct answer
         input_dict = {'1_2_1': '42'}
@@ -2461,10 +2499,14 @@ class AnnotationResponseTest(ResponseTest):
             actual_correctness = correct_map.get_correctness(answer_id)
             actual_points = correct_map.get_npoints(answer_id)
 
-            self.assertEqual(expected_correctness, actual_correctness,
-                             msg="%s should be marked %s" % (answer_id, expected_correctness))
-            self.assertEqual(expected_points, actual_points,
-                             msg="%s should have %d points" % (answer_id, expected_points))
+            self.assertEqual(
+                expected_correctness, actual_correctness,
+                msg="%s should be marked %s" % (answer_id, expected_correctness)
+            )
+            self.assertEqual(
+                expected_points, actual_points,
+                msg="%s should have %d points" % (answer_id, expected_points)
+            )
 
 
 class ChoiceTextResponseTest(ResponseTest):
@@ -2785,9 +2827,10 @@ class ChoiceTextResponseTest(ResponseTest):
         )
         # Two choice two input problem with both choices correct.
         checkbox_two_choices_two_inputs = self._make_problem(
-            [("true", {"answer": "123", "tolerance": "0"}),
-             ("true", {"answer": "456", "tolerance": "0"})
-             ],
+            [
+                ("true", {"answer": "123", "tolerance": "0"}),
+                ("true", {"answer": "456", "tolerance": "0"})
+            ],
             "checkboxtextgroup"
         )
 
