@@ -491,6 +491,7 @@ class ChoiceGroup(InputTypeBase):
 
         TODO: allow order of choices to be randomized, following lon-capa spec.  Use
         "location" attribute, ie random, top, bottom.
+        This is implemented in MC but not in checkbox problems.
         """
 
         choices = []
@@ -667,8 +668,10 @@ class TextLine(InputTypeBase):
         ]
 
     def setup(self):
-        self.do_math = bool(self.loaded_attributes['math'] or
-                            self.loaded_attributes['dojs'])
+        self.do_math = bool(
+            self.loaded_attributes['math'] or
+            self.loaded_attributes['dojs']
+        )
 
         # TODO: do math checking using ajax instead of using js, so
         # that we only have one math parser.
@@ -1059,17 +1062,21 @@ class ImageInput(InputTypeBase):
         """
         Note: src, height, and width are all required.
         """
-        return [Attribute('src'),
-                Attribute('height'),
-                Attribute('label', ''),
-                Attribute('width'), ]
+        return [
+            Attribute('src'),
+            Attribute('height'),
+            Attribute('label', ''),
+            Attribute('width')
+        ]
 
     def setup(self):
         """
         if value is of the form [x,y] then parse it and send along coordinates of previous answer
         """
-        m = re.match(r'\[([0-9]+),([0-9]+)]',
-                     self.value.strip().replace(' ', ''))
+        m = re.match(
+            r'\[([0-9]+),([0-9]+)]',
+            self.value.strip().replace(' ', '')
+        )
         if m:
             # Note: we subtract 15 to compensate for the size of the dot on the screen.
             # (is a 30x30 image--lms/static/images/green-pointer.png).
@@ -1079,8 +1086,10 @@ class ImageInput(InputTypeBase):
 
     def _extra_context(self):
 
-        return {'gx': self.gx,
-                'gy': self.gy}
+        return {
+            'gx': self.gx,
+            'gy': self.g
+        }
 
 #-----------------------------------------------------------------------------
 
@@ -1101,9 +1110,10 @@ class Crystallography(InputTypeBase):
         """
         Note: height, width are required.
         """
-        return [Attribute('height'),
-                Attribute('width'),
-                ]
+        return [
+            Attribute('height'),
+            Attribute('width')
+        ]
 
 # -------------------------------------------------------------------------
 
@@ -1123,11 +1133,12 @@ class VseprInput(InputTypeBase):
         """
         Note: height, width, molecules and geometries are required.
         """
-        return [Attribute('height'),
-                Attribute('width'),
-                Attribute('molecules'),
-                Attribute('geometries'),
-                ]
+        return [
+            Attribute('height'),
+            Attribute('width'),
+            Attribute('molecules'),
+            Attribute('geometries')
+        ]
 
 #-------------------------------------------------------------------------
 
@@ -1152,8 +1163,10 @@ class ChemicalEquationInput(InputTypeBase):
         """
         Can set size of text field.
         """
-        return [Attribute('size', '20'),
-                Attribute('label', ''), ]
+        return [
+            Attribute('size', '20'),
+            Attribute('label', '')
+        ]
 
     def _extra_context(self):
         """
@@ -1185,24 +1198,26 @@ class ChemicalEquationInput(InputTypeBase):
         }
         """
 
-        _ = self.capa_system.i18n.ugettext
         result = {'preview': '',
                   'error': ''}
         try:
             formula = data['formula']
         except KeyError:
-            result['error'] = _("No formula specified.")
+            result['error'] = self.capa_system.i18n.ugettext("No formula specified.")
             return result
 
         try:
             result['preview'] = chemcalc.render_to_html(formula)
         except pyparsing.ParseException as err:
-            result['error'] = _("Couldn't parse formula: {error_msg}").format(error_msg=err.msg)
+            message = self.capa_system.i18n.ugettext("Couldn't parse formula: {error_msg}")
+            result['error'] = message.format(error_msg=err.msg)
         except Exception:
             # this is unexpected, so log
             log.warning(
-                "Error while previewing chemical formula", exc_info=True)
-            result['error'] = _("Error while rendering preview")
+                "Error while previewing chemical formula",
+                exc_info=True
+            )
+            result['error'] = self.capa_system.i18n.ugettext("Error while rendering preview")
 
         return result
 
@@ -1267,14 +1282,16 @@ class FormulaEquationInput(InputTypeBase):
            'request_start' : <time sent with request>
         }
         """
-        _ = self.capa_system.i18n.ugettext
-        result = {'preview': '',
-                  'error': ''}
+
+        result = {
+            'preview': '',
+            'error': ''
+        }
 
         try:
             formula = get['formula']
         except KeyError:
-            result['error'] = _("No formula specified.")
+            result['error'] = self.capa_system.i18n.ugettext("No formula specified.")
             return result
 
         result['request_start'] = int(get.get('request_start', 0))
@@ -1285,14 +1302,14 @@ class FormulaEquationInput(InputTypeBase):
             # or something, and this is where we would need to pass those in.
             result['preview'] = latex_preview(formula)
         except pyparsing.ParseException as err:
-            result['error'] = _("Sorry, couldn't parse formula")
+            result['error'] = self.capa_system.i18n.ugettext("Sorry, couldn't parse formula")
             result['formula'] = formula
         except Exception:
             # this is unexpected, so log
             log.warning(
                 "Error while previewing formula", exc_info=True
             )
-            result['error'] = _("Error while rendering preview")
+            result['error'] = self.capa_system.i18n.ugettext("Error while rendering preview")
 
         return result
 
@@ -1358,14 +1375,14 @@ class DragAndDropInput(InputTypeBase):
                 dic['label'] = dic['label'] or dic['id']
 
             if tag_type == 'draggable':
-                dic['target_fields'] = [parse(target, 'target') for target in
-                                        tag.iterchildren('target')]
+                dic['target_fields'] = [
+                    parse(target, 'target') for target in tag.iterchildren('target')
+                ]
 
             return dic
 
         # add labels to images?:
-        self.no_labels = Attribute('no_labels',
-                                   default="False").parse_from_xml(self.xml)
+        self.no_labels = Attribute('no_labels', default="False").parse_from_xml(self.xml)
 
         to_js = dict()
 
@@ -1379,15 +1396,17 @@ class DragAndDropInput(InputTypeBase):
         to_js['one_per_target'] = Attribute('one_per_target',
                                             default="True").parse_from_xml(self.xml)
         # list of draggables
-        to_js['draggables'] = [parse(draggable, 'draggable') for draggable in
-                               self.xml.iterchildren('draggable')]
+        to_js['draggables'] = [
+            parse(draggable, 'draggable') for draggable in self.xml.iterchildren('draggable')
+        ]
+
         # list of targets
-        to_js['targets'] = [parse(target, 'target') for target in
-                            self.xml.iterchildren('target')]
+        to_js['targets'] = [
+            parse(target, 'target') for target in self.xml.iterchildren('target')
+        ]
 
         # custom background color for labels:
-        label_bg_color = Attribute('label_bg_color',
-                                   default=None).parse_from_xml(self.xml)
+        label_bg_color = Attribute('label_bg_color', default=None).parse_from_xml(self.xml)
         if label_bg_color:
             to_js['label_bg_color'] = label_bg_color
 
@@ -1449,10 +1468,11 @@ class DesignProtein2dInput(InputTypeBase):
         """
         Note: width, hight, and target_shape are required.
         """
-        return [Attribute('width'),
-                Attribute('height'),
-                Attribute('target_shape')
-                ]
+        return [
+            Attribute('width'),
+            Attribute('height'),
+            Attribute('target_shape')
+        ]
 
     def _extra_context(self):
         context = {
@@ -1484,9 +1504,10 @@ class EditAGeneInput(InputTypeBase):
         """
         Note: width, height, and dna_sequencee are required.
         """
-        return [Attribute('genex_dna_sequence'),
-                Attribute('genex_problem_number')
-                ]
+        return [
+            Attribute('genex_dna_sequence'),
+            Attribute('genex_problem_number')
+        ]
 
     def _extra_context(self):
         context = {
@@ -1538,8 +1559,7 @@ class AnnotationInput(InputTypeBase):
         self.title = xml.findtext('./title', 'Annotation Exercise')
         self.text = xml.findtext('./text')
         self.comment = xml.findtext('./comment')
-        self.comment_prompt = xml.findtext(
-            './comment_prompt', 'Type a commentary below:')
+        self.comment_prompt = xml.findtext('./comment_prompt', 'Type a commentary below:')
         self.tag_prompt = xml.findtext('./tag_prompt', 'Select one tag:')
         self.options = self._find_options()
 
@@ -1554,10 +1574,12 @@ class AnnotationInput(InputTypeBase):
         """ Returns an array of dicts where each dict represents an option. """
         elements = self.xml.findall('./options/option')
         return [{
-                'id': index,
-                'description': option.text,
-                'choice': option.get('choice')
-                } for (index, option) in enumerate(elements)]
+                    'id': index,
+                    'description': option.text,
+                    'choice': option.get('choice')
+                }
+                for (index, option) in enumerate(elements)
+        ]
 
     def _validate_options(self):
         """ Raises a ValueError if the choice attribute is missing or invalid. """
@@ -1686,8 +1708,8 @@ class ChoiceTextGroup(InputTypeBase):
         elif self.tag == 'checkboxtextgroup':
             self.html_input_type = "checkbox"
         else:
-            _ = self.capa_system.i18n.ugettext
-            msg = _("{input_type}: unexpected tag {tag_name}").format(
+            msg = self.capa_system.i18n.ugettext("{input_type}: unexpected tag {tag_name}")
+            msg = msg.format(
                 input_type="ChoiceTextGroup", tag_name=self.tag
             )
             raise Exception(msg)
@@ -1708,7 +1730,7 @@ class ChoiceTextGroup(InputTypeBase):
         return [
             Attribute("show_correctness", "always"),
             Attribute("submitted_message", _("Answer received.")),
-            Attribute("label", ""),
+            Attribute("label", "")
         ]
 
     def _extra_context(self):
