@@ -119,19 +119,35 @@ class CorrectMap(object):
         return None
 
     def is_queued(self, answer_id):
+        """
+        Takes an answer_id
+        Returns true if the problem has a non-None queue state
+        """
         return answer_id in self.cmap and self.cmap[answer_id]['queuestate'] is not None
 
     def is_right_queuekey(self, answer_id, test_key):
+        """
+        Takes an answer_id and a test queue key
+        Returns true if the problem is queued has the right queue key.
+        """
         return self.is_queued(answer_id) and self.cmap[answer_id]['queuestate']['key'] == test_key
 
     def get_queuetime_str(self, answer_id):
+        """
+        Takes an answer_id
+        Returns the queue time.
+        """
         if self.cmap[answer_id]['queuestate']:
             return self.cmap[answer_id]['queuestate']['time']
         else:
             return None
 
     def get_npoints(self, answer_id):
-        """Return the number of points for an answer, used for partial credit."""
+        """
+        Takes an answer_id
+        Returns the number of points for the problem.
+        Used for partial credit.
+        """
         npoints = self.get_property(answer_id, 'npoints')
         if npoints is not None:
             return npoints
@@ -181,11 +197,15 @@ class CorrectMap(object):
         self.set_overall_message(other_cmap.get_overall_message())
 
     def set_overall_message(self, message_str):
-        """ Set a message that applies to the question as a whole,
-            rather than to individual inputs. """
+        """
+        Set a message that applies to the question as a whole,
+        rather than to individual inputs.
+        """
         self.overall_message = str(message_str) if message_str else ""
 
     def get_overall_message(self):
-        """ Retrieve a message that applies to the question as a whole.
-        If no message is available, returns the empty string """
+        """
+        Retrieve a message that applies to the question as a whole.
+        If no message is available, returns the empty string
+        """
         return self.overall_message
