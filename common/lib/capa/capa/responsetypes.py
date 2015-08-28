@@ -785,16 +785,14 @@ class JavascriptResponse(LoncapaResponse):
 
         grader_file = os.path.dirname(os.path.normpath(
             __file__)) + '/javascript_problem_grader.js'
-        temp_outputs = self.call_node(
-            [
+        temp_outputs = self.call_node([
                 grader_file,
                 self.grader,
                 json.dumps(self.grader_dependencies),
                 submission,
                 json.dumps(self.problem_state),
                 json.dumps(self.params)
-            ]
-        )
+        ])
         outputs = temp_outputs.split('\n')
 
         all_correct = json.loads(outputs[0].strip())
@@ -1129,8 +1127,10 @@ class ChoiceResponse(LoncapaResponse):
             student_set = set()
             names = []
             for student_answer in student_answers[self.answer_id]:
-                choice_list = self.xml.xpath('//checkboxgroup[@id=$id]/choice[@name=$name]',
-                                             id=self.answer_id, name=student_answer)
+                choice_list = self.xml.xpath(
+                    '//checkboxgroup[@id=$id]/choice[@name=$name]',
+                    id=self.answer_id, name=student_answer
+                )
                 if choice_list:
                     choice = choice_list[0]
                     student_set.add(choice.get('id').upper())
@@ -1246,8 +1246,8 @@ class MultipleChoiceResponse(LoncapaResponse):
 
             # Find the named choice used by the student. Silently ignore a non-matching
             # choice name.
-            choice = self.xml.find('./choicegroup[@id="{0}"]/choice[@name="{1}"]'.format(self.answer_id,
-                                                                                         student_answer))
+            choice = self.xml.find('./choicegroup[@id="{0}"]/choice[@name="{1}"]'
+            choice = choice.format(self.answer_id, student_answer))
             if choice is not None:
                 hint_node = choice.find('./choicehint')
                 new_cmap[self.answer_id]['msg'] += self.make_hint_div(
@@ -1379,9 +1379,8 @@ class MultipleChoiceResponse(LoncapaResponse):
         Fails with LoncapaProblemError if called on a response that is not masking.
         """
         if not self.has_mask():
-            _ = self.capa_system.i18n.ugettext
             # Translators: 'unmask_name' is a method name and should not be translated.
-            msg = _("unmask_name called on response that is not masked")
+            msg = self.capa_system.i18n.ugettext("unmask_name called on response that is not masked")
             raise LoncapaProblemError(msg)
         return self._mask_dict[name]
 
@@ -1409,9 +1408,8 @@ class MultipleChoiceResponse(LoncapaResponse):
         if choicegroups:
             choicegroup = choicegroups[0]
             if choicegroup.get('answer-pool') is not None:
-                _ = self.capa_system.i18n.ugettext
                 # Translators: 'shuffle' and 'answer-pool' are attribute names and should not be translated.
-                msg = _("Do not use shuffle and answer-pool at the same time")
+                msg = self.capa_system.i18n.ugettext("Do not use shuffle and answer-pool at the same time")
                 raise LoncapaProblemError(msg)
             # Note in the response that shuffling is done.
             # Both to avoid double-processing, and to feed the logs.
@@ -1492,9 +1490,8 @@ class MultipleChoiceResponse(LoncapaResponse):
             try:
                 num_choices = int(num_str)
             except ValueError:
-                _ = self.capa_system.i18n.ugettext
                 # Translators: 'answer-pool' is an attribute name and should not be translated.
-                msg = _("answer-pool value should be an integer")
+                msg = self.capa_system.i18n.ugettext("answer-pool value should be an integer")
                 raise LoncapaProblemError(msg)
 
             # Note in the response that answerpool is done.
@@ -1559,9 +1556,10 @@ class MultipleChoiceResponse(LoncapaResponse):
         # Or perhaps in the overall author workflow, these errors are unhelpful and
         # should all be removed.
         if len(correct_choices) < 1 or len(incorrect_choices) < 1:
-            _ = self.capa_system.i18n.ugettext
             # Translators: 'Choicegroup' is an input type and should not be translated.
-            msg = _("Choicegroup must include at least 1 correct and 1 incorrect choice")
+            msg = self.capa_system.i18n.ugettext(
+                "Choicegroup must include at least 1 correct and 1 incorrect choice"
+            )
             raise LoncapaProblemError(msg)
 
         # Limit the number of incorrect choices to what we actually have
