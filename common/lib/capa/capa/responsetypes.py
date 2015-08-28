@@ -120,6 +120,7 @@ class LoncapaResponse(object):
                                condition for a hint to be displayed
 
       - render_html          : render this Response as HTML (must return XHTML-compliant string)
+
       - __unicode__          : unicode representation of this Response
 
     Each response type may also specify the following attributes:
@@ -131,6 +132,11 @@ class LoncapaResponse(object):
 
       - required_attributes  : list of required attributes (each a string) on the main
                                response XML stanza
+
+      - has_partial_credit   : True if problem assigns partial credit, False otherwise
+
+      - credit_type          : Array of strings indicating type of partial credit.
+                               Should be empty if has_partial_credit=False.
 
       - hint_tag             : xhtml tag identifying hint associated with this response inside
                                hintgroup
@@ -174,16 +180,20 @@ class LoncapaResponse(object):
         for abox in inputfields:
             if abox.tag not in self.allowed_inputfields:
                 msg = "%s: cannot have input field %s" % (
-                    unicode(self), abox.tag)
+                    unicode(self), abox.tag
+                )
                 msg += "\nSee XML source line %s" % getattr(
-                    xml, 'sourceline', '<unavailable>')
+                    xml, 'sourceline', '<unavailable>'
+                )
                 raise LoncapaProblemError(msg)
 
         if self.max_inputfields and len(inputfields) > self.max_inputfields:
             msg = "%s: cannot have more than %s input fields" % (
-                unicode(self), self.max_inputfields)
+                unicode(self), self.max_inputfields
+            )
             msg += "\nSee XML source line %s" % getattr(
-                xml, 'sourceline', '<unavailable>')
+                xml, 'sourceline', '<unavailable>'
+            )
             raise LoncapaProblemError(msg)
 
         for prop in self.required_attributes:
@@ -220,9 +230,11 @@ class LoncapaResponse(object):
         partial_credit = xml.xpath('.')[0].get('partial_credit', default=False)
 
         if str(partial_credit).lower().strip() == 'false':
+            # No partial credit.
             self.has_partial_credit = False
             self.credit_type = []
         else:
+            # Set variables for use in individual problem graders.
             self.has_partial_credit = True
             self.credit_type = partial_credit.split(',')
             self.credit_type = [word.strip().lower() for word in self.credit_type]
@@ -274,7 +286,8 @@ class LoncapaResponse(object):
         """
         new_cmap = self.get_score(student_answers)
         self.get_hints(convert_files_to_filenames(
-            student_answers), new_cmap, old_cmap)
+            student_answers), new_cmap, old_cmap
+        )
         return new_cmap
 
     def make_hint_div(self, hint_node, correct, student_answer, question_tag,
@@ -493,6 +506,7 @@ class LoncapaResponse(object):
         """
         Return a CorrectMap for the answers expected vs given.  This includes
         (correctness, npoints, msg) for each answer_id.
+        Must be defined in each problem type.
 
         Arguments:
          - student_answers : dict of (answer_id, answer) where answer = student input (string)
@@ -503,12 +517,14 @@ class LoncapaResponse(object):
     def get_answers(self):
         """
         Return a dict of (answer_id, answer_text) for each answer for this question.
+        Must be defined in each problem type.
         """
         pass
 
     def check_hint_condition(self, hxml_set, student_answers):
         """
         Return a list of hints to show.
+        Must be defined in each problem type.
 
           - hxml_set        : list of Element trees, each specifying a condition to be
                               satisfied for a named hint condition
@@ -521,17 +537,22 @@ class LoncapaResponse(object):
         pass
 
     def setup_response(self):
+        """
+        Must be defined in each problem type.
+        """
         pass
 
     def __unicode__(self):
         return u'LoncapaProblem Response %s' % self.xml.tag
 
     def _render_response_msg_html(self, response_msg):
-        """ Render a <div> for a message that applies to the entire response.
+        """
+        Render a <div> for a message that applies to the entire response.
 
         *response_msg* is a string, which may contain XHTML markup
 
-        Returns an etree element representing the response message <div> """
+        Returns an etree element representing the response message <div>
+        """
         # First try wrapping the text in a <div> and parsing
         # it as an XHTML tree
         try:
@@ -578,7 +599,9 @@ class JavascriptResponse(LoncapaResponse):
     allowed_inputfields = ['javascriptinput']
 
     def setup_response(self):
-        # Sets up generator, grader, display, and their dependencies.
+        """
+        Sets up generator, grader, display, and their dependencies.
+        """
         self.parse_xml()
 
         self.compile_display_javascript()
@@ -629,14 +652,25 @@ class JavascriptResponse(LoncapaResponse):
         self.display_filename = 'compiled/' + filename
 
     def parse_xml(self):
-        self.generator_xml = self.xml.xpath('//*[@id=$id]//generator',
-                                            id=self.xml.get('id'))[0]
+        """
+        Reads in the XML for Javascript-type problems
+        and sets variables for later use.
+        """
 
-        self.grader_xml = self.xml.xpath('//*[@id=$id]//grader',
-                                         id=self.xml.get('id'))[0]
+        self.generator_xml = self.xml.xpath(
+            '//*[@id=$id]//generator',
+            id=self.xml.get('id')
+        )[0]
 
-        self.display_xml = self.xml.xpath('//*[@id=$id]//display',
-                                          id=self.xml.get('id'))[0]
+        self.grader_xml = self.xml.xpath(
+            '//*[@id=$id]//grader',
+            id=self.xml.get('id')
+        )[0]
+
+        self.display_xml = self.xml.xpath(
+            '//*[@id=$id]//display',
+            id=self.xml.get('id')
+        )[0]
 
         self.xml.remove(self.generator_xml)
         self.xml.remove(self.grader_xml)
@@ -647,20 +681,17 @@ class JavascriptResponse(LoncapaResponse):
         self.display = self.display_xml.get("src")
 
         if self.generator_xml.get("dependencies"):
-            self.generator_dependencies = self.generator_xml.get(
-                "dependencies").split()
+            self.generator_dependencies = self.generator_xml.get("dependencies").split()
         else:
             self.generator_dependencies = []
 
         if self.grader_xml.get("dependencies"):
-            self.grader_dependencies = self.grader_xml.get(
-                "dependencies").split()
+            self.grader_dependencies = self.grader_xml.get("dependencies").split()
         else:
             self.grader_dependencies = []
 
         if self.display_xml.get("dependencies"):
-            self.display_dependencies = self.display_xml.get(
-                "dependencies").split()
+            self.display_dependencies = self.display_xml.get("dependencies").split()
         else:
             self.display_dependencies = []
 
@@ -691,11 +722,14 @@ class JavascriptResponse(LoncapaResponse):
 
         generator_file = os.path.dirname(os.path.normpath(
             __file__)) + '/javascript_problem_generator.js'
-        output = self.call_node([generator_file,
-                                 self.generator,
-                                 json.dumps(self.generator_dependencies),
-                                 json.dumps(str(self.context['seed'])),
-                                 json.dumps(self.params)]).strip()
+        output = self.call_node([
+            generator_file,
+            self.generator,
+            json.dumps(self.generator_dependencies),
+            json.dumps(str(self.context['seed'])),
+            json.dumps(self.params)
+        ])
+        output = output.strip()
 
         return json.loads(output)
 
@@ -703,19 +737,23 @@ class JavascriptResponse(LoncapaResponse):
 
         params = {}
 
-        for param in self.xml.xpath('//*[@id=$id]//responseparam',
-                                    id=self.xml.get('id')):
-
+        for param in self.xml.xpath(
+            '//*[@id=$id]//responseparam',
+            id=self.xml.get('id')
+        ):
             raw_param = param.get("value")
             params[param.get("name")] = json.loads(
-                contextualize_text(raw_param, self.context))
+                contextualize_text(raw_param, self.context)
+            )
 
         return params
 
     def prepare_inputfield(self):
 
-        for inputfield in self.xml.xpath('//*[@id=$id]//javascriptinput',
-                                         id=self.xml.get('id')):
+        for inputfield in self.xml.xpath(
+            '//*[@id=$id]//javascriptinput',
+            id=self.xml.get('id')
+        ):
 
             escapedict = {'"': '&quot;'}
 
@@ -724,8 +762,7 @@ class JavascriptResponse(LoncapaResponse):
             inputfield.set("params", encoded_params)
 
             encoded_problem_state = json.dumps(self.problem_state)
-            encoded_problem_state = saxutils.escape(encoded_problem_state,
-                                                    escapedict)
+            encoded_problem_state = saxutils.escape(encoded_problem_state, escapedict)
             inputfield.set("problem_state", encoded_problem_state)
 
             inputfield.set("display_file", self.display_filename)
@@ -748,12 +785,17 @@ class JavascriptResponse(LoncapaResponse):
 
         grader_file = os.path.dirname(os.path.normpath(
             __file__)) + '/javascript_problem_grader.js'
-        outputs = self.call_node([grader_file,
-                                  self.grader,
-                                  json.dumps(self.grader_dependencies),
-                                  submission,
-                                  json.dumps(self.problem_state),
-                                  json.dumps(self.params)]).split('\n')
+        temp_outputs = self.call_node(
+            [
+                grader_file,
+                self.grader,
+                json.dumps(self.grader_dependencies),
+                submission,
+                json.dumps(self.problem_state),
+                json.dumps(self.params)
+            ]
+        )
+        outputs = temp_outputs.split('\n')
 
         all_correct = json.loads(outputs[0].strip())
         evaluation = outputs[1].strip()
