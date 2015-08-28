@@ -6,6 +6,7 @@ Teams pages.
 from .course_page import CoursePage
 from .discussion import InlineDiscussionPage
 from ..common.paging import PaginatedUIMixin
+from ...pages.studio.utils import confirm_prompt
 
 from .fields import FieldsMixin
 
@@ -204,7 +205,7 @@ class BrowseTeamsPage(CoursePage, PaginatedUIMixin):
             self.wait_for_ajax()
 
 
-class CreateTeamPage(CoursePage, FieldsMixin):
+class CreateOrEditTeamPage(CoursePage, FieldsMixin):
     """
     Create team page.
     """
@@ -215,7 +216,7 @@ class CreateTeamPage(CoursePage, FieldsMixin):
         representation of a topic following the same convention as a
         course module's topic.
         """
-        super(CreateTeamPage, self).__init__(browser, course_id)
+        super(CreateOrEditTeamPage, self).__init__(browser, course_id)
         self.topic = topic
         self.url_path = "teams/#topics/{topic_id}/create-team".format(topic_id=self.topic['id'])
 
@@ -334,14 +335,17 @@ class TeamPage(CoursePage, PaginatedUIMixin):
         """Verifies that team leave link is present"""
         return self.q(css='.leave-team-link').present
 
-    def click_leave_team_link(self, remaining_members=0):
+    def click_leave_team_link(self, remaining_members=0, cancel=False):
         """ Click on Leave Team link"""
         self.q(css='.leave-team-link').first.click()
-        self.wait_for(
-            lambda: self.join_team_button_present,
-            description="Join Team button did not become present"
-        )
-        self.wait_for_capacity_text(remaining_members)
+        confirm_prompt(self, cancel, require_notification=False)
+
+        if cancel is False:
+            self.wait_for(
+                lambda: self.join_team_button_present,
+                description="Join Team button did not become present"
+            )
+            self.wait_for_capacity_text(remaining_members)
 
     @property
     def team_members(self):
@@ -406,3 +410,12 @@ class TeamPage(CoursePage, PaginatedUIMixin):
         """Navigate to the 'All Topics' page."""
         self.q(css='.breadcrumbs a').results[0].click()
         self.wait_for_ajax()
+
+    @property
+    def edit_team_button_present(self):
+        """ Returns True if Edit Team button is present else False """
+        return self.q(css='.form-actions .action-edit-team').present
+
+    def click_edit_team_button(self):
+        """ Click on Edit Team button"""
+        self.q(css='.form-actions .action-edit-team').first.click()
