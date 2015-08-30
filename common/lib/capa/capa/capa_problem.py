@@ -267,11 +267,13 @@ class LoncapaProblem(object):
             2) Populate any student answers.
         """
 
-        return {'seed': self.seed,
-                'student_answers': self.student_answers,
-                'correct_map': self.correct_map.get_dict(),
-                'input_state': self.input_state,
-                'done': self.done}
+        return {
+            'seed': self.seed,
+            'student_answers': self.student_answers,
+            'correct_map': self.correct_map.get_dict(),
+            'input_state': self.input_state,
+            'done': self.done
+        }
 
     def get_max_score(self):
         """
@@ -297,11 +299,15 @@ class LoncapaProblem(object):
                 raise
 
         if (not self.student_answers) or len(self.student_answers) == 0:
-            return {'score': 0,
-                    'total': self.get_max_score()}
+            return {
+                'score': 0,
+                'total': self.get_max_score()
+            }
         else:
-            return {'score': correct,
-                    'total': self.get_max_score()}
+            return {
+                'score': correct,
+                'total': self.get_max_score()
+            }
 
     def update_score(self, score_msg, queuekey):
         """
@@ -429,8 +435,11 @@ class LoncapaProblem(object):
             # an earlier submission, so for now skip these entirely.
             # TODO: figure out where to get file submissions when rescoring.
             if 'filesubmission' in responder.allowed_inputfields and student_answers is None:
-                _ = self.capa_system.i18n.ugettext
-                raise Exception(_(u"Cannot rescore problems with possible file submissions"))
+                raise Exception(
+                    self.capa_system.i18n.ugettext(
+                        u"Cannot rescore problems with possible file submissions"
+                    )
+                )
 
             # use 'student_answers' only if it is provided, and if it might contain a file
             # submission that would not exist in the persisted "student_answers".
@@ -750,7 +759,8 @@ class LoncapaProblem(object):
             return
 
         if (problemtree.tag == 'script' and problemtree.get('type')
-                and 'javascript' in problemtree.get('type')):
+                and 'javascript' in problemtree.get('type')
+        ):
             # leave javascript intact.
             return deepcopy(problemtree)
 
@@ -879,8 +889,10 @@ class LoncapaProblem(object):
             try:
                 self.responder_answers[response] = self.responders[response].get_answers()
             except:
-                log.debug('responder %s failed to properly return get_answers()',
-                          self.responders[response])  # FIXME
+                log.debug(
+                    'responder %s failed to properly return get_answers()',
+                    self.responders[response]
+                )  # FIXME
                 raise
 
         # <solution>...</solution> may not be associated with any specific response; give

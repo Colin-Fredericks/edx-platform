@@ -113,8 +113,10 @@ class CapaFields(object):
     )
     showanswer = String(
         display_name=_("Show Answer"),
-        help=_("Defines when to show the answer to the problem. "
-               "A default value can be set in Advanced Settings."),
+        help=_(
+            "Defines when to show the answer to the problem. "
+            "A default value can be set in Advanced Settings."
+        ),
         scope=Scope.settings,
         default=SHOWANSWER.FINISHED,
         values=[
@@ -136,8 +138,10 @@ class CapaFields(object):
     default_reset_button = getattr(settings, reset_key) if hasattr(settings, reset_key) else False
     show_reset_button = Boolean(
         display_name=_("Show Reset Button"),
-        help=_("Determines whether a 'Reset' button is shown so the user may reset their answer. "
-               "A default value can be set in Advanced Settings."),
+        help=_(
+            "Determines whether a 'Reset' button is shown so the user may reset their answer. "
+            "A default value can be set in Advanced Settings."
+        ),
         scope=Scope.settings,
         default=default_reset_button
     )
@@ -157,8 +161,10 @@ class CapaFields(object):
         ]
     )
     data = String(help=_("XML data for the problem"), scope=Scope.content, default="<problem></problem>")
-    correct_map = Dict(help=_("Dictionary with the correctness of current student answers"),
-                       scope=Scope.user_state, default={})
+    correct_map = Dict(
+        help=_("Dictionary with the correctness of current student answers"),
+        scope=Scope.user_state, default={}
+    )
     input_state = Dict(help=_("Dictionary for maintaining the state of inputtypes"), scope=Scope.user_state)
     student_answers = Dict(help=_("Dictionary with the current student responses"), scope=Scope.user_state)
     done = Boolean(help=_("Whether the student has answered the problem"), scope=Scope.user_state)
@@ -171,8 +177,10 @@ class CapaFields(object):
         default=0)
     weight = Float(
         display_name=_("Problem Weight"),
-        help=_("Defines the number of points each problem is worth. "
-               "If the value is not set, each response field in the problem is worth one point."),
+        help=_(
+            "Defines the number of points each problem is worth. "
+            "If the value is not set, each response field in the problem is worth one point."
+        ),
         values={"min": 0, "step": .1},
         scope=Scope.settings
     )
@@ -205,7 +213,7 @@ class CapaFields(object):
 
 class CapaMixin(CapaFields):
     """
-        Core logic for Capa Problem, which can be used by XModules or XBlocks.
+    Core logic for Capa Problem, which can be used by XModules or XBlocks.
     """
     def __init__(self, *args, **kwargs):
         super(CapaMixin, self).__init__(*args, **kwargs)
@@ -240,8 +248,8 @@ class CapaMixin(CapaFields):
                 self.seed = self.lcp.seed
 
         except Exception as err:  # pylint: disable=broad-except
-            msg = u'cannot create LoncapaProblem {loc}: {err}'.format(
-                loc=self.location.to_deprecated_string(), err=err)
+            msg = u'cannot create LoncapaProblem {loc}: {err}'
+            msg = msg.format(loc=self.location.to_deprecated_string(), err=err)
             # TODO (vshnayder): do modules need error handlers too?
             # We shouldn't be switching on DEBUG.
             if self.runtime.DEBUG:
@@ -260,11 +268,14 @@ class CapaMixin(CapaFields):
                     )
                 )
                 # create a dummy problem with error message instead of failing
-                problem_text = (u'<problem><text><span class="inline-error">'
-                                u'Problem {url} has an error:</span>{msg}</text></problem>'.format(
-                                    url=self.location.to_deprecated_string(),
-                                    msg=msg)
-                                )
+                problem_text = (
+                    u'<problem><text><span class="inline-error">'
+                    u'Problem {url} has an error:</span>{msg}</text></problem>'
+                )                
+                problem_text = problem_text.format(
+                    url=self.location.to_deprecated_string(),
+                    msg=msg)
+                )
                 self.lcp = self.new_lcp(self.get_state_for_lcp(), text=problem_text)
             else:
                 # add extra info and raise
@@ -394,13 +405,16 @@ class CapaMixin(CapaFields):
         Return some html with data about the module
         """
         progress = self.get_progress()
-        return self.runtime.render_template('problem_ajax.html', {
-            'element_id': self.location.html_id(),
-            'id': self.location.to_deprecated_string(),
-            'ajax_url': self.runtime.ajax_url,
-            'progress_status': Progress.to_js_status_str(progress),
-            'progress_detail': Progress.to_js_detail_str(progress),
-        })
+        return self.runtime.render_template(
+            'problem_ajax.html', 
+            {
+                'element_id': self.location.html_id(),
+                'id': self.location.to_deprecated_string(),
+                'ajax_url': self.runtime.ajax_url,
+                'progress_status': Progress.to_js_status_str(progress),
+                'progress_detail': Progress.to_js_detail_str(progress),
+            }
+        )
 
     def check_button_name(self):
         """
@@ -444,8 +458,7 @@ class CapaMixin(CapaFields):
         if 'custom_checking' in self.text_customization:
             return self.text_customization.get('custom_checking')
 
-        _ = self.runtime.service(self, "i18n").ugettext
-        return _('Checking...')
+        return self.runtime.service(self, "i18n").ugettext('Checking...')
 
     def should_show_check_button(self):
         """
@@ -536,9 +549,9 @@ class CapaMixin(CapaFields):
         if self.runtime.DEBUG:
             msg = (
                 u'[courseware.capa.capa_module] <font size="+1" color="red">'
-                u'Failed to generate HTML for problem {url}</font>'.format(
-                    url=cgi.escape(self.location.to_deprecated_string()))
+                u'Failed to generate HTML for problem {url}</font>'
             )
+            msg = msg.format(url=cgi.escape(self.location.to_deprecated_string()))
             msg += u'<p>Error:</p><p><pre>{msg}</pre></p>'.format(msg=cgi.escape(err.message))
             msg += u'<p><pre>{tb}</pre></p>'.format(tb=cgi.escape(traceback.format_exc()))
             html = msg
@@ -566,19 +579,24 @@ class CapaMixin(CapaFields):
             self.set_state_from_lcp()
 
             # Prepend a scary warning to the student
-            _ = self.runtime.service(self, "i18n").ugettext
-            warning_msg = _("Warning: The problem has been reset to its initial state!")
+            warning_msg = self.runtime.service(self, "i18n").ugettext(
+                "Warning: The problem has been reset to its initial state!"
+            )
             warning = '<div class="capa_reset"> <h2> ' + warning_msg + '</h2>'
 
             # Translators: Following this message, there will be a bulleted list of items.
-            warning_msg = _("The problem's state was corrupted by an invalid submission. The submission consisted of:")
+            warning_msg = self.runtime.service(self, "i18n").ugettext(
+                "The problem's state was corrupted by an invalid submission. The submission consisted of:"
+            )
             warning += warning_msg + '<ul>'
 
             for student_answer in student_answers.values():
                 if student_answer != '':
                     warning += '<li>' + cgi.escape(student_answer) + '</li>'
 
-            warning_msg = _('If this error persists, please contact the course staff.')
+            warning_msg = self.runtime.service(self, "i18n").ugettext(
+                'If this error persists, please contact the course staff.'
+            )
             warning += '</ul>' + warning_msg + '</div>'
 
             html = warning
@@ -611,8 +629,10 @@ class CapaMixin(CapaFields):
             prefix = _('Hint: ')
         else:
             # Translators: e.g. "Hint 1 of 3" meaning we are showing the first of three hints.
-            prefix = _('Hint ({hint_num} of {hints_count}): ').format(hint_num=hint_index + 1,
-                                                                      hints_count=len(demand_hints))
+            prefix = _('Hint ({hint_num} of {hints_count}): ').format(
+                hint_num=hint_index + 1,
+                hints_count=len(demand_hints)
+            )
 
         # Log this demand-hint request
         event_info = dict()
@@ -725,8 +745,10 @@ class CapaMixin(CapaFields):
         """
         Is it now past this problem's due date, including grace period?
         """
-        return (self.close_date is not None and
-                datetime.datetime.now(UTC()) > self.close_date)
+        return (
+            self.close_date is not None and
+            datetime.datetime.now(UTC()) > self.close_date
+        )
 
     def closed(self):
         """
@@ -1067,8 +1089,10 @@ class CapaMixin(CapaFields):
             self.set_last_submission_time()
 
         except (StudentInputError, ResponseError, LoncapaProblemError) as inst:
-            log.warning("StudentInputError in capa_module:problem_check",
-                        exc_info=True)
+            log.warning(
+                "StudentInputError in capa_module:problem_check",
+                exc_info=True
+            )
 
             # Save the user's state before failing
             self.set_state_from_lcp()
@@ -1402,7 +1426,8 @@ class CapaMixin(CapaFields):
             self.track_function_unmask('save_problem_fail', event_info)
             return {
                 'success': False,
-                # Translators: 'closed' means the problem's due date has passed. You may no longer attempt to solve the problem.
+                # Translators: 'closed' means the problem's due date has passed. 
+                # You may no longer attempt to solve the problem.
                 'msg': _("Problem is closed.")
             }
 
@@ -1444,15 +1469,15 @@ class CapaMixin(CapaFields):
         event_info = dict()
         event_info['old_state'] = self.lcp.get_state()
         event_info['problem_id'] = self.location.to_deprecated_string()
-        _ = self.runtime.service(self, "i18n").ugettext
 
         if self.closed():
             event_info['failure'] = 'closed'
             self.track_function_unmask('reset_problem_fail', event_info)
             return {
                 'success': False,
-                # Translators: 'closed' means the problem's due date has passed. You may no longer attempt to solve the problem.
-                'error': _("Problem is closed."),
+                # Translators: 'closed' means the problem's due date has passed.
+                # You may no longer attempt to solve the problem.
+                'error': self.runtime.service(self, "i18n").ugettext("Problem is closed."),
             }
 
         if not self.is_submitted():
@@ -1460,8 +1485,11 @@ class CapaMixin(CapaFields):
             self.track_function_unmask('reset_problem_fail', event_info)
             return {
                 'success': False,
-                # Translators: A student must "make an attempt" to solve the problem on the page before they can reset it.
-                'error': _("Refresh the page and make an attempt before resetting."),
+                # Translators: A student must "make an attempt" to solve the
+                # problem on the page before they can reset it.
+                'error': self.runtime.service(self, "i18n").ugettext(
+                    "Refresh the page and make an attempt before resetting."
+                ),
             }
 
         if self.is_submitted() and self.rerandomize in [RANDOMIZATION.ALWAYS, RANDOMIZATION.ONRESET]:
