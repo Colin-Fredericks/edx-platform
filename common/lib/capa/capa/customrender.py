@@ -59,10 +59,8 @@ class MathRenderer(object):
             xhtml = etree.XML(html)
         except Exception as err:
             if self.system.DEBUG:
-                msg = '<html><div class="inline-error"><p>Error %s</p>' % (
-                    str(err).replace('<', '&lt;'))
-                msg += ('<p>Failed to construct math expression from <pre>%s</pre></p>' %
-                        html.replace('<', '&lt;'))
+                msg = '<html><div class="inline-error"><p>Error %s</p>' % (str(err).replace('<', '&lt;'))
+                msg += ('<p>Failed to construct math expression from <pre>%s</pre></p>' % html.replace('<', '&lt;'))
                 msg += "</div></html>"
                 log.error(msg)
                 return etree.XML(msg)
