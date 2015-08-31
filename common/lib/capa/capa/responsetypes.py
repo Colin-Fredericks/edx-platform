@@ -1380,8 +1380,9 @@ class MultipleChoiceResponse(LoncapaResponse):
         Fails with LoncapaProblemError if called on a response that is not masking.
         """
         if not self.has_mask():
+            _ = self.capa_system.i18n.ugettext
             # Translators: 'unmask_name' is a method name and should not be translated.
-            msg = self.capa_system.i18n.ugettext("unmask_name called on response that is not masked")
+            msg = _("unmask_name called on response that is not masked")
             raise LoncapaProblemError(msg)
         return self._mask_dict[name]
 
@@ -1409,8 +1410,9 @@ class MultipleChoiceResponse(LoncapaResponse):
         if choicegroups:
             choicegroup = choicegroups[0]
             if choicegroup.get('answer-pool') is not None:
+                _ = self.capa_system.i18n.ugettext
                 # Translators: 'shuffle' and 'answer-pool' are attribute names and should not be translated.
-                msg = self.capa_system.i18n.ugettext("Do not use shuffle and answer-pool at the same time")
+                msg = _("Do not use shuffle and answer-pool at the same time")
                 raise LoncapaProblemError(msg)
             # Note in the response that shuffling is done.
             # Both to avoid double-processing, and to feed the logs.
@@ -1491,8 +1493,9 @@ class MultipleChoiceResponse(LoncapaResponse):
             try:
                 num_choices = int(num_str)
             except ValueError:
+                _ = self.capa_system.i18n.ugettext
                 # Translators: 'answer-pool' is an attribute name and should not be translated.
-                msg = self.capa_system.i18n.ugettext("answer-pool value should be an integer")
+                msg = _("answer-pool value should be an integer")
                 raise LoncapaProblemError(msg)
 
             # Note in the response that answerpool is done.
@@ -1557,10 +1560,9 @@ class MultipleChoiceResponse(LoncapaResponse):
         # Or perhaps in the overall author workflow, these errors are unhelpful and
         # should all be removed.
         if len(correct_choices) < 1 or len(incorrect_choices) < 1:
+            _ = self.capa_system.i18n.ugettext
             # Translators: 'Choicegroup' is an input type and should not be translated.
-            msg = self.capa_system.i18n.ugettext(
-                "Choicegroup must include at least 1 correct and 1 incorrect choice"
-            )
+            msg = _("Choicegroup must include at least 1 correct and 1 incorrect choice")
             raise LoncapaProblemError(msg)
 
         # Limit the number of incorrect choices to what we actually have

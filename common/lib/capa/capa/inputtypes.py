@@ -1198,26 +1198,24 @@ class ChemicalEquationInput(InputTypeBase):
         }
         """
 
+        _ = self.capa_system.i18n.ugettext
         result = {'preview': '',
                   'error': ''}
         try:
             formula = data['formula']
         except KeyError:
-            result['error'] = self.capa_system.i18n.ugettext("No formula specified.")
+            result['error'] = _("No formula specified.")
             return result
 
         try:
             result['preview'] = chemcalc.render_to_html(formula)
         except pyparsing.ParseException as err:
-            message = self.capa_system.i18n.ugettext("Couldn't parse formula: {error_msg}")
-            result['error'] = message.format(error_msg=err.msg)
+            result['error'] = _("Couldn't parse formula: {error_msg}").format(error_msg=err.msg)
         except Exception:
             # this is unexpected, so log
             log.warning(
-                "Error while previewing chemical formula",
-                exc_info=True
-            )
-            result['error'] = self.capa_system.i18n.ugettext("Error while rendering preview")
+                "Error while previewing chemical formula", exc_info=True)
+            result['error'] = _("Error while rendering preview")
 
         return result
 
@@ -1283,6 +1281,7 @@ class FormulaEquationInput(InputTypeBase):
         }
         """
 
+        _ = self.capa_system.i18n.ugettext
         result = {
             'preview': '',
             'error': ''
@@ -1291,7 +1290,7 @@ class FormulaEquationInput(InputTypeBase):
         try:
             formula = get['formula']
         except KeyError:
-            result['error'] = self.capa_system.i18n.ugettext("No formula specified.")
+            result['error'] = _("No formula specified.")
             return result
 
         result['request_start'] = int(get.get('request_start', 0))
@@ -1302,14 +1301,14 @@ class FormulaEquationInput(InputTypeBase):
             # or something, and this is where we would need to pass those in.
             result['preview'] = latex_preview(formula)
         except pyparsing.ParseException as err:
-            result['error'] = self.capa_system.i18n.ugettext("Sorry, couldn't parse formula")
+            result['error'] = _("Sorry, couldn't parse formula")
             result['formula'] = formula
         except Exception:
             # this is unexpected, so log
             log.warning(
                 "Error while previewing formula", exc_info=True
             )
-            result['error'] = self.capa_system.i18n.ugettext("Error while rendering preview")
+            result['error'] = _("Error while rendering preview")
 
         return result
 
@@ -1708,8 +1707,8 @@ class ChoiceTextGroup(InputTypeBase):
         elif self.tag == 'checkboxtextgroup':
             self.html_input_type = "checkbox"
         else:
-            msg = self.capa_system.i18n.ugettext("{input_type}: unexpected tag {tag_name}")
-            msg = msg.format(
+            _ = self.capa_system.i18n.ugettext
+            msg = _("{input_type}: unexpected tag {tag_name}").format(
                 input_type="ChoiceTextGroup", tag_name=self.tag
             )
             raise Exception(msg)

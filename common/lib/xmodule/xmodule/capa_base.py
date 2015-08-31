@@ -458,7 +458,8 @@ class CapaMixin(CapaFields):
         if 'custom_checking' in self.text_customization:
             return self.text_customization.get('custom_checking')
 
-        return self.runtime.service(self, "i18n").ugettext('Checking...')
+        _ = self.runtime.service(self, "i18n").ugettext
+        return _('Checking...')
 
     def should_show_check_button(self):
         """
@@ -579,24 +580,19 @@ class CapaMixin(CapaFields):
             self.set_state_from_lcp()
 
             # Prepend a scary warning to the student
-            warning_msg = self.runtime.service(self, "i18n").ugettext(
-                "Warning: The problem has been reset to its initial state!"
-            )
+            _ = self.runtime.service(self, "i18n").ugettext
+            warning_msg = _("Warning: The problem has been reset to its initial state!")
             warning = '<div class="capa_reset"> <h2> ' + warning_msg + '</h2>'
 
             # Translators: Following this message, there will be a bulleted list of items.
-            warning_msg = self.runtime.service(self, "i18n").ugettext(
-                "The problem's state was corrupted by an invalid submission. The submission consisted of:"
-            )
+            warning_msg = _("The problem's state was corrupted by an invalid submission. The submission consisted of:")
             warning += warning_msg + '<ul>'
 
             for student_answer in student_answers.values():
                 if student_answer != '':
                     warning += '<li>' + cgi.escape(student_answer) + '</li>'
 
-            warning_msg = self.runtime.service(self, "i18n").ugettext(
-                'If this error persists, please contact the course staff.'
-            )
+            warning_msg = _('If this error persists, please contact the course staff.')
             warning += '</ul>' + warning_msg + '</div>'
 
             html = warning
@@ -1469,15 +1465,15 @@ class CapaMixin(CapaFields):
         event_info = dict()
         event_info['old_state'] = self.lcp.get_state()
         event_info['problem_id'] = self.location.to_deprecated_string()
+        _ = self.runtime.service(self, "i18n").ugettext
 
         if self.closed():
             event_info['failure'] = 'closed'
             self.track_function_unmask('reset_problem_fail', event_info)
             return {
                 'success': False,
-                # Translators: 'closed' means the problem's due date has passed.
-                # You may no longer attempt to solve the problem.
-                'error': self.runtime.service(self, "i18n").ugettext("Problem is closed."),
+                # Translators: 'closed' means the problem's due date has passed. You may no longer attempt to solve the problem.
+                'error': _("Problem is closed."),
             }
 
         if not self.is_submitted():
@@ -1485,11 +1481,8 @@ class CapaMixin(CapaFields):
             self.track_function_unmask('reset_problem_fail', event_info)
             return {
                 'success': False,
-                # Translators: A student must "make an attempt" to solve the
-                # problem on the page before they can reset it.
-                'error': self.runtime.service(self, "i18n").ugettext(
-                    "Refresh the page and make an attempt before resetting."
-                ),
+                # Translators: A student must "make an attempt" to solve the problem on the page before they can reset it.
+                'error': _("Refresh the page and make an attempt before resetting."),
             }
 
         if self.is_submitted() and self.rerandomize in [RANDOMIZATION.ALWAYS, RANDOMIZATION.ONRESET]:
