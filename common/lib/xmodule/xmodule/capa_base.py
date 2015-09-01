@@ -271,10 +271,10 @@ class CapaMixin(CapaFields):
                 problem_text = (
                     u'<problem><text><span class="inline-error">'
                     u'Problem {url} has an error:</span>{msg}</text></problem>'
-                )                
+                )
                 problem_text = problem_text.format(
                     url=self.location.to_deprecated_string(),
-                    msg=msg)
+                    msg=msg
                 )
                 self.lcp = self.new_lcp(self.get_state_for_lcp(), text=problem_text)
             else:
@@ -406,7 +406,7 @@ class CapaMixin(CapaFields):
         """
         progress = self.get_progress()
         return self.runtime.render_template(
-            'problem_ajax.html', 
+            'problem_ajax.html',
             {
                 'element_id': self.location.html_id(),
                 'id': self.location.to_deprecated_string(),
@@ -1422,7 +1422,7 @@ class CapaMixin(CapaFields):
             self.track_function_unmask('save_problem_fail', event_info)
             return {
                 'success': False,
-                # Translators: 'closed' means the problem's due date has passed. 
+                # Translators: 'closed' means the problem's due date has passed.
                 # You may no longer attempt to solve the problem.
                 'msg': _("Problem is closed.")
             }

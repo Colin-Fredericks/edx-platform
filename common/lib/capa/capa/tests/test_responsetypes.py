@@ -213,6 +213,7 @@ class TrueFalseResponseTest(ResponseTest):
         self.assert_grade(problem, 'choice_0', 'correct')
         self.assert_grade(problem, ['choice_0'], 'correct')
 
+
 class ImageResponseTest(ResponseTest):
     xml_factory_class = ImageResponseXMLFactory
 
@@ -1195,16 +1196,16 @@ class CodeResponseTest(ResponseTest):
         Test whether file objects are converted to filenames without altering other structures
         '''
         problem_file = os.path.join(os.path.dirname(__file__), "test_files/filename_convert_test.txt")
-        with open(problem_file) as fp:
+        with open(problem_file) as openedfile:
             answers_with_file = {
                 '1_2_1': 'String-based answer',
                 '1_3_1': ['answer1', 'answer2', 'answer3'],
-                '1_4_1': [fp, fp]
+                '1_4_1': [openedfile, openedfile]
             }
             answers_converted = convert_files_to_filenames(answers_with_file)
             self.assertEquals(answers_converted['1_2_1'], 'String-based answer')
             self.assertEquals(answers_converted['1_3_1'], ['answer1', 'answer2', 'answer3'])
-            self.assertEquals(answers_converted['1_4_1'], [fp.name, fp.name])
+            self.assertEquals(answers_converted['1_4_1'], [openedfile.name, openedfile.name])
 
     def test_parse_score_msg_of_responder(self):
         """

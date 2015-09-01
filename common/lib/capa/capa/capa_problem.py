@@ -755,7 +755,8 @@ class LoncapaProblem(object):
             # other than to examine .tag to see if it's a string. :(
             return
 
-        if (problemtree.tag == 'script' and problemtree.get('type')
+        if (problemtree.tag == 'script'
+                and problemtree.get('type')
                 and 'javascript' in problemtree.get('type')
         ):
             # leave javascript intact.

@@ -1073,11 +1073,11 @@ class ImageInput(InputTypeBase):
         """
         if value is of the form [x,y] then parse it and send along coordinates of previous answer
         """
-        m = re.match(
+        msg = re.match(
             r'\[([0-9]+),([0-9]+)]',
             self.value.strip().replace(' ', '')
         )
-        if m:
+        if msg:
             # Note: we subtract 15 to compensate for the size of the dot on the screen.
             # (is a 30x30 image--lms/static/images/green-pointer.png).
             (self.gx, self.gy) = [int(x) - 15 for x in m.groups()]
@@ -1088,7 +1088,7 @@ class ImageInput(InputTypeBase):
 
         return {
             'gx': self.gx,
-            'gy': self.g
+            'gy': self.gy
         }
 
 #-----------------------------------------------------------------------------
@@ -1572,12 +1572,13 @@ class AnnotationInput(InputTypeBase):
     def _find_options(self):
         """ Returns an array of dicts where each dict represents an option. """
         elements = self.xml.findall('./options/option')
-        return [{
-                    'id': index,
-                    'description': option.text,
-                    'choice': option.get('choice')
-                }
-                for (index, option) in enumerate(elements)
+        return [
+            {
+                'id': index,
+                'description': option.text,
+                'choice': option.get('choice')
+            }
+            for (index, option) in enumerate(elements)
         ]
 
     def _validate_options(self):

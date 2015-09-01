@@ -285,9 +285,7 @@ class LoncapaResponse(object):
         Returns the new CorrectMap, with (correctness,msg,hint,hintmode) for each answer_id.
         """
         new_cmap = self.get_score(student_answers)
-        self.get_hints(convert_files_to_filenames(
-            student_answers), new_cmap, old_cmap
-        )
+        self.get_hints(convert_files_to_filenames(student_answers), new_cmap, old_cmap)
         return new_cmap
 
     def make_hint_div(self, hint_node, correct, student_answer, question_tag,
@@ -739,8 +737,8 @@ class JavascriptResponse(LoncapaResponse):
         params = {}
 
         for param in self.xml.xpath(
-            '//*[@id=$id]//responseparam',
-            id=self.xml.get('id')
+                '//*[@id=$id]//responseparam',
+                id=self.xml.get('id')
         ):
             raw_param = param.get("value")
             params[param.get("name")] = json.loads(
@@ -787,12 +785,12 @@ class JavascriptResponse(LoncapaResponse):
         grader_file = os.path.dirname(os.path.normpath(
             __file__)) + '/javascript_problem_grader.js'
         temp_outputs = self.call_node([
-                grader_file,
-                self.grader,
-                json.dumps(self.grader_dependencies),
-                submission,
-                json.dumps(self.problem_state),
-                json.dumps(self.params)
+            grader_file,
+            self.grader,
+            json.dumps(self.grader_dependencies),
+            submission,
+            json.dumps(self.problem_state),
+            json.dumps(self.params)
         ])
         outputs = temp_outputs.split('\n')
 
@@ -1247,8 +1245,8 @@ class MultipleChoiceResponse(LoncapaResponse):
 
             # Find the named choice used by the student. Silently ignore a non-matching
             # choice name.
-            choice = self.xml.find('./choicegroup[@id="{0}"]/choice[@name="{1}"]'
-            choice = choice.format(self.answer_id, student_answer))
+            choice = self.xml.find('./choicegroup[@id="{0}"]/choice[@name="{1}"]')
+            choice = choice.format(self.answer_id, student_answer)
             if choice is not None:
                 hint_node = choice.find('./choicehint')
                 new_cmap[self.answer_id]['msg'] += self.make_hint_div(
@@ -2003,10 +2001,10 @@ class NumericalResponse(LoncapaResponse):
                     )
                 boundaries.append(boundary.real)
                 if compare_with_tolerance(
-                    student_float,
-                    boundary,
-                    tolerance=float_info.epsilon,
-                    relative_tolerance=True
+                        student_float,
+                        boundary,
+                        tolerance=float_info.epsilon,
+                        relative_tolerance=True
                 ):
                     is_correct = 'correct' if inclusion else 'incorrect'
                     break
@@ -2356,7 +2354,7 @@ class StringResponse(LoncapaResponse):
 
     def get_answers(self):
         _ = self.capa_system.i18n.ugettext
-        # Translators: This is the separator used in StringResponse to display multiple answers. 
+        # Translators: This is the separator used in StringResponse to display multiple answers.
         # Here it's the word "or". Example: "Answer: Answer_1 or Answer_2 or Answer_3".
         separator = u' <b>{}</b> '.format(_('or'))
         return {self.answer_id: separator.join(self.correct_answer)}
@@ -3134,7 +3132,7 @@ class CodeResponse(LoncapaResponse):
 
         # Next, we need to check that the contents of the external grader message is safe for the LMS.
         # 1) Make sure that the message is valid XML (proper opening/closing tags)
-        # 2) If it is not valid XML, make sure it is valid HTML. 
+        # 2) If it is not valid XML, make sure it is valid HTML.
         # Note: html5lib parser will try to repair any broken HTML
         # For example: <aaa></bbb> will become <aaa/>.
         msg = score_result['msg']
@@ -3280,8 +3278,8 @@ class ExternalResponse(LoncapaResponse):
         except Exception as err:  # pylint: disable=broad-except
             log.error('Error %s', err)
             if self.capa_system.DEBUG:
-                cmap.set_dict(dict(zip(sorted(
-                    self.answer_ids), ['incorrect'] * len(idset)))
+                cmap.set_dict(
+                    dict(zip(sorted(self.answer_ids), ['incorrect'] * len(idset)))
                 )
                 cmap.set_property(
                     self.answer_ids[0], 'msg',
