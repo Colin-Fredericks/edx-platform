@@ -106,10 +106,6 @@ class CorrectMap(object):
         return None
 
     def is_queued(self, answer_id):
-        """
-        Takes an answer_id
-        Returns true if the problem has a non-None queue state
-        """
         return answer_id in self.cmap and self.cmap[answer_id]['queuestate'] is not None
 
     def is_right_queuekey(self, answer_id, test_key):

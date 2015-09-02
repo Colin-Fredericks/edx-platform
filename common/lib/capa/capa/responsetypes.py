@@ -223,20 +223,6 @@ class LoncapaResponse(object):
                 self.default_answer_map[entry.get(
                     'id')] = contextualize_text(answer, self.context)
 
-        # Does this problem have partial credit?
-        # If so, what kind? Get it as a list of strings.
-        partial_credit = xml.xpath('.')[0].get('partial_credit', default=False)
-
-        if str(partial_credit).lower().strip() == 'false':
-            # No partial credit.
-            self.has_partial_credit = False
-            self.credit_type = []
-        else:
-            # Set variables for use in individual problem graders.
-            self.has_partial_credit = True
-            self.credit_type = partial_credit.split(',')
-            self.credit_type = [word.strip().lower() for word in self.credit_type]
-
         if hasattr(self, 'setup_response'):
             self.setup_response()
 

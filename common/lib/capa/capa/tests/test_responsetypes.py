@@ -341,10 +341,8 @@ class OptionResponseTest(ResponseTest):
     xml_factory_class = OptionResponseXMLFactory
 
     def test_grade(self):
-        problem = self.build_problem(
-            options=["first", "second", "third"],
-            correct_option="second"
-        )
+        problem = self.build_problem(options=["first", "second", "third"],
+                                     correct_option="second")
 
         # Assert that we get the expected grades
         self.assert_grade(problem, "first", "incorrect")
