@@ -1,6 +1,6 @@
 (function(define) {
-'use strict';
-define('video/09_events_plugin.js', [], function() {
+    'use strict';
+    define('video/09_events_plugin.js', [], function() {
     /**
      * Events module.
      * @exports video/09_events_plugin.js
@@ -10,120 +10,143 @@ define('video/09_events_plugin.js', [], function() {
      * @param {Object} options
      * @return {jquery Promise}
      */
-    var EventsPlugin = function(state, i18n, options) {
-        if (!(this instanceof EventsPlugin)) {
-            return new EventsPlugin(state, i18n, options);
-        }
+        var EventsPlugin = function(state, i18n, options) {
+            if (!(this instanceof EventsPlugin)) {
+                return new EventsPlugin(state, i18n, options);
+            }
 
-        _.bindAll(this, 'onReady', 'onPlay', 'onPause', 'onEnded', 'onSeek',
+            _.bindAll(this, 'onReady', 'onPlay', 'onPause', 'onEnded', 'onSeek',
             'onSpeedChange', 'onShowLanguageMenu', 'onHideLanguageMenu', 'onSkip',
-            'onShowCaptions', 'onHideCaptions', 'destroy');
-        this.state = state;
-        this.options = _.extend({}, options);
-        this.state.videoEventsPlugin = this;
-        this.i18n = i18n;
-        this.initialize();
+            'onShowTranscript', 'onHideTranscript', 'onShowCaptions', 'onHideCaptions',
+            'destroy');
 
-        return $.Deferred().resolve().promise();
-    };
+            this.state = state;
+            this.options = _.extend({}, options);
+            this.state.videoEventsPlugin = this;
+            this.i18n = i18n;
+            this.initialize();
 
-    EventsPlugin.moduleName = 'EventsPlugin';
-    EventsPlugin.prototype = {
-        destroy: function () {
-            this.state.el.off(this.events);
-            delete this.state.videoEventsPlugin;
-        },
+            return $.Deferred().resolve().promise();
+        };
 
-        initialize: function() {
-            this.events = {
-                'ready': this.onReady,
-                'play': this.onPlay,
-                'pause': this.onPause,
-                'ended stop': this.onEnded,
-                'seek': this.onSeek,
-                'skip': this.onSkip,
-                'speedchange': this.onSpeedChange,
-                'language_menu:show': this.onShowLanguageMenu,
-                'language_menu:hide': this.onHideLanguageMenu,
-                'captions:show': this.onShowCaptions,
-                'captions:hide': this.onHideCaptions,
-                'destroy': this.destroy
-            };
-            this.bindHandlers();
-        },
+        EventsPlugin.moduleName = 'EventsPlugin';
+        EventsPlugin.prototype = {
+            destroy: function() {
+                this.state.el.off(this.events);
+                delete this.state.videoEventsPlugin;
+            },
 
-        bindHandlers: function() {
-            this.state.el.on(this.events);
-        },
+            initialize: function() {
+                this.events = {
+                    'ready': this.onReady,
+                    'play': this.onPlay,
+                    'pause': this.onPause,
+                    'ended stop': this.onEnded,
+                    'seek': this.onSeek,
+                    'skip': this.onSkip,
+                    'speedchange': this.onSpeedChange,
+                    'language_menu:show': this.onShowLanguageMenu,
+                    'language_menu:hide': this.onHideLanguageMenu,
+                    'transcript:show': this.onShowTranscript,
+                    'transcript:hide': this.onHideTranscript,
+                    'captions:show': this.onShowCaptions,
+                    'captions:hide': this.onHideCaptions,
+                    'destroy': this.destroy
+                };
+                this.bindHandlers();
+                this.emitPlayVideoEvent = true;
+            },
 
-        onReady: function () {
-            this.log('load_video');
-        },
+            bindHandlers: function() {
+                this.state.el.on(this.events);
+            },
 
-        onPlay: function () {
-            this.log('play_video', {currentTime: this.getCurrentTime()});
-        },
+            onReady: function() {
+                this.log('load_video');
+            },
 
-        onPause: function () {
-            this.log('pause_video', {currentTime: this.getCurrentTime()});
-        },
+            onPlay: function() {
+                if (this.emitPlayVideoEvent) {
+                    this.log('play_video', {currentTime: this.getCurrentTime()});
+                    this.emitPlayVideoEvent = false;
+                }
+            },
 
-        onEnded: function () {
-            this.log('stop_video', {currentTime: this.getCurrentTime()});
-        },
+            onPause: function() {
+                this.log('pause_video', {currentTime: this.getCurrentTime()});
+                this.emitPlayVideoEvent = true;
+            },
 
-        onSkip: function (event, doNotShowAgain) {
-            var info = {currentTime: this.getCurrentTime()},
-                eventName = doNotShowAgain ? 'do_not_show_again_video': 'skip_video';
-            this.log(eventName, info);
-        },
+            onEnded: function() {
+                this.log('stop_video', {currentTime: this.getCurrentTime()});
+                this.emitPlayVideoEvent = true;
+            },
 
-        onSeek: function (event, time, oldTime, type) {
-            this.log('seek_video', {
-                old_time: oldTime,
-                new_time: time,
-                type: type
-            });
-        },
+            onSkip: function(event, doNotShowAgain) {
+                var info = {currentTime: this.getCurrentTime()},
+                    eventName = doNotShowAgain ? 'do_not_show_again_video' : 'skip_video';
+                this.log(eventName, info);
+            },
 
-        onSpeedChange: function (event, newSpeed, oldSpeed) {
-            this.log('speed_change_video', {
-                current_time: this.getCurrentTime(),
-                old_speed: oldSpeed,
-                new_speed: newSpeed
-            });
-        },
+            onSeek: function(event, time, oldTime, type) {
+                this.log('seek_video', {
+                    old_time: oldTime,
+                    new_time: time,
+                    type: type
+                });
+            },
 
-        onShowLanguageMenu: function () {
-            this.log('video_show_cc_menu');
-        },
+            onSpeedChange: function(event, newSpeed, oldSpeed) {
+                this.log('speed_change_video', {
+                    current_time: this.getCurrentTime(),
+                    old_speed: oldSpeed,
+                    new_speed: newSpeed
+                });
+            },
 
-        onHideLanguageMenu: function () {
-            this.log('video_hide_cc_menu');
-        },
+            onShowLanguageMenu: function() {
+                this.log('edx.video.language_menu.shown');
+            },
 
-        onShowCaptions: function () {
-            this.log('show_transcript', {current_time: this.getCurrentTime()});
-        },
+            onHideLanguageMenu: function() {
+                this.log('edx.video.language_menu.hidden', {language: this.getCurrentLanguage()});
+            },
 
-        onHideCaptions: function () {
-            this.log('hide_transcript', {current_time: this.getCurrentTime()});
-        },
+            onShowTranscript: function() {
+                this.log('show_transcript', {current_time: this.getCurrentTime()});
+            },
 
-        getCurrentTime: function () {
-            var player = this.state.videoPlayer;
-            return player ? player.currentTime : 0;
-        },
+            onHideTranscript: function() {
+                this.log('hide_transcript', {current_time: this.getCurrentTime()});
+            },
 
-        log: function (eventName, data) {
-            var logInfo = _.extend({
-                id: this.state.id,
-                code: this.state.isYoutubeType() ? this.state.youtubeId() : 'html5'
-            }, data, this.options.data);
-            Logger.log(eventName, logInfo);
-        }
-    };
+            onShowCaptions: function() {
+                this.log('edx.video.closed_captions.shown', {current_time: this.getCurrentTime()});
+            },
 
-    return EventsPlugin;
-});
+            onHideCaptions: function() {
+                this.log('edx.video.closed_captions.hidden', {current_time: this.getCurrentTime()});
+            },
+
+            getCurrentTime: function() {
+                var player = this.state.videoPlayer;
+                return player ? player.currentTime : 0;
+            },
+
+            getCurrentLanguage: function() {
+                var language = this.state.lang;
+                return language;
+            },
+
+            log: function(eventName, data) {
+                var logInfo = _.extend({
+                    id: this.state.id,
+                    code: this.state.isYoutubeType() ? this.state.youtubeId() : 'html5'
+                }, data, this.options.data);
+                Logger.log(eventName, logInfo);
+            }
+        };
+
+        return EventsPlugin;
+    });
 }(RequireJS.define));

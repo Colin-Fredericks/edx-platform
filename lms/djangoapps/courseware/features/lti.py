@@ -150,7 +150,7 @@ def set_incorrect_lti_passport(_step):
     i_am_registered_for_the_course(coursenum, metadata)
 
 
-@step('the course has an LTI component with (.*) fields(?:\:)?$')  # , new_page is(.*), graded is(.*)
+@step(r'the course has an LTI component with (.*) fields(?:\:)?$')  # , new_page is(.*), graded is(.*)
 def add_correct_lti_to_course(_step, fields):
     category = 'lti'
     metadata = {
@@ -181,10 +181,10 @@ def add_correct_lti_to_course(_step, fields):
         metadata=metadata,
     )
 
-    setattr(world.scenario_dict['LTI'], 'TEST_BASE_PATH', '{host}:{port}'.format(
+    world.scenario_dict['LTI'].TEST_BASE_PATH = '{host}:{port}'.format(
         host=world.browser.host,
         port=world.browser.port,
-    ))
+    )
 
     visit_scenario_item('LTI')
 

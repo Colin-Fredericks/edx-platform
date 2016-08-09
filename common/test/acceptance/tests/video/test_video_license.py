@@ -4,15 +4,15 @@ Acceptance tests for licensing of the Video module
 """
 from __future__ import unicode_literals
 from nose.plugins.attrib import attr
-from ..studio.base_studio_test import StudioCourseTest
+from common.test.acceptance.tests.studio.base_studio_test import StudioCourseTest
 
-#from ..helpers import UniqueCourseTest
-from ...pages.studio.overview import CourseOutlinePage
-from ...pages.lms.courseware import CoursewarePage
-from ...fixtures.course import XBlockFixtureDesc
+#from common.test.acceptance.tests.helpers import UniqueCourseTest
+from common.test.acceptance.pages.studio.overview import CourseOutlinePage
+from common.test.acceptance.pages.lms.courseware import CoursewarePage
+from common.test.acceptance.fixtures.course import XBlockFixtureDesc
 
 
-@attr('shard_2')
+@attr(shard=2)
 class VideoLicenseTest(StudioCourseTest):
     """
     Tests for video module-level licensing (that is, setting the license,
@@ -76,7 +76,7 @@ class VideoLicenseTest(StudioCourseTest):
         container_page = unit.go_to()
         container_page.edit()
         video = [xb for xb in container_page.xblocks if xb.name == "Test Video"][0]
-        video.edit().open_advanced_tab()
+        video.open_advanced_tab()
         video.set_license('all-rights-reserved')
         video.save_settings()
         container_page.publish_action.click()
@@ -84,8 +84,11 @@ class VideoLicenseTest(StudioCourseTest):
         self.lms_courseware.visit()
         video = self.lms_courseware.q(css=".vert .xblock .video")
         self.assertTrue(video.is_present())
-        video_license = self.lms_courseware.q(css=".vert .xblock.xmodule_VideoModule .xblock-license")
-        self.assertTrue(video_license.is_present())
+        video_license_css = ".vert .xblock.xmodule_VideoModule .xblock-license"
+        self.lms_courseware.wait_for_element_presence(
+            video_license_css, "Video module license block is present"
+        )
+        video_license = self.lms_courseware.q(css=video_license_css)
         self.assertEqual(video_license.text[0], "© All Rights Reserved")
 
     def test_cc_license(self):
@@ -103,7 +106,7 @@ class VideoLicenseTest(StudioCourseTest):
         container_page = unit.go_to()
         container_page.edit()
         video = [xb for xb in container_page.xblocks if xb.name == "Test Video"][0]
-        video.edit().open_advanced_tab()
+        video.open_advanced_tab()
         video.set_license('creative-commons')
         video.save_settings()
         container_page.publish_action.click()
@@ -111,6 +114,9 @@ class VideoLicenseTest(StudioCourseTest):
         self.lms_courseware.visit()
         video = self.lms_courseware.q(css=".vert .xblock .video")
         self.assertTrue(video.is_present())
-        video_license = self.lms_courseware.q(css=".vert .xblock.xmodule_VideoModule .xblock-license")
-        self.assertTrue(video_license.is_present())
+        video_license_css = ".vert .xblock.xmodule_VideoModule .xblock-license"
+        self.lms_courseware.wait_for_element_presence(
+            video_license_css, "Video module license block is present"
+        )
+        video_license = self.lms_courseware.q(css=video_license_css)
         self.assertIn("Some Rights Reserved", video_license.text[0])

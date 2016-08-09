@@ -43,8 +43,19 @@
     vertical-align: middle;
   }
 
+  .user-language-selector {
+    width: 120px;
+    display: inline-block;
+    margin: 0 10px 0 5px;
+    vertical-align: sub;
+
+    .language-selector {
+      width: 120px;
+    }
+  }
+
   .nav-account {
-    width: 100%;
+    width: auto;
   }
 
   // basic layout - nav items
@@ -65,7 +76,7 @@
       color: $gray-d1;
 
       &:hover {
-        color: $blue-s1;
+        color: $uxpl-blue-hover-active;
       }
     }
   }
@@ -140,7 +151,8 @@
       overflow: hidden;
       white-space: nowrap;
       text-overflow: ellipsis;
-      opacity: 0.75;
+      opacity: 1.0;
+      color: $gray-d3;
     }
 
     .course-org {
@@ -161,10 +173,10 @@
     .course-link {
       @include transition(color $tmg-f2 ease-in-out 0s);
       display: block;
-      color: $gray-d1;
+      color: $gray-d3;
 
       &:hover {
-        color: $blue-s1;
+        color: $uxpl-blue-hover-active;
       }
     }
   }
@@ -208,6 +220,13 @@
         }
       }
     }
+
+    .settings-language-form {
+      margin-top: 4px;
+      .language-selector {
+        width: 130px;
+      }
+    }
   }
 
   // ====================
@@ -229,11 +248,11 @@
 .is-signedin {
 
   .wrapper-l {
-    width: flex-grid(9,12);
+    width: flex-grid(8,12);
   }
 
   .wrapper-r {
-    width: flex-grid(3,12);
+    width: flex-grid(4,12);
   }
 
   .branding {
@@ -253,11 +272,11 @@
   .wrapper-header {
 
     .wrapper-l {
-      width: flex-grid(9,12);
+      width: flex-grid(8,12);
     }
 
     .wrapper-r {
-      width: flex-grid(3,12);
+      width: flex-grid(4,12);
     }
 
     .branding {
@@ -368,12 +387,10 @@ body.course.view-certificates .nav-course-settings-certificates,
 // course tools
 body.course.view-import .nav-course-tools .title,
 body.course.view-export .nav-course-tools .title,
-body.course.view-checklists .nav-course-tools .title,
 body.course.view-export-git .nav-course-tools .title,
 
 body.course.view-import .nav-course-tools-import,
 body.course.view-export .nav-course-tools-export,
-body.course.view-checklists .nav-course-tools-checklists,
 body.course.view-export-git .nav-course-tools-export-git,
 
 // content library settings
@@ -382,10 +399,10 @@ body.course.view-team .nav-library-settings .title,
 body.course.view-team .nav-library-settings-team,
 
 {
-  color: $blue;
+  color: $uxpl-blue-base;
 
   a {
-    color: $blue;
+    color: $uxpl-blue-base;
     pointer-events: none;
   }
 }

@@ -13,11 +13,6 @@ from the same directory.
 import os
 from path import Path as path
 
-# Pylint gets confused by path.py instances, which report themselves as class
-# objects. As a result, pylint applies the wrong regex in validating names,
-# and throws spurious errors. Therefore, we disable invalid-name checking.
-# pylint: disable=invalid-name
-
 
 ########################## Prod-like settings ###################################
 # These should be as close as possible to the settings we use in production.
@@ -62,11 +57,11 @@ DEBUG = True
 # Note: optimized files for testing are generated with settings from test_static_optimized
 STATIC_URL = "/static/"
 STATICFILES_FINDERS = (
-    'staticfiles.finders.FileSystemFinder',
+    'django.contrib.staticfiles.finders.FileSystemFinder',
 )
-STATICFILES_DIRS = (
+STATICFILES_DIRS = [
     (TEST_ROOT / "staticfiles" / "cms").abspath(),
-)
+]
 
 # Silence noisy logs
 import logging
@@ -99,12 +94,12 @@ FEATURES['ENABLE_MOBILE_REST_API'] = True  # Enable video bumper in Studio
 FEATURES['ENABLE_VIDEO_BUMPER'] = True  # Enable video bumper in Studio settings
 
 # Enable partner support link in Studio footer
-FEATURES['PARTNER_SUPPORT_EMAIL'] = 'partner-support@example.com'
+PARTNER_SUPPORT_EMAIL = 'partner-support@example.com'
 
 ########################### Entrance Exams #################################
 FEATURES['ENTRANCE_EXAMS'] = True
 
-FEATURES['ENABLE_PROCTORED_EXAMS'] = True
+FEATURES['ENABLE_SPECIAL_EXAMS'] = True
 
 # Point the URL used to test YouTube availability to our stub YouTube server
 YOUTUBE_PORT = 9080
@@ -114,15 +109,18 @@ YOUTUBE['TEXT_API']['url'] = "127.0.0.1:{0}/test_transcripts_youtube/".format(YO
 
 FEATURES['ENABLE_COURSEWARE_INDEX'] = True
 FEATURES['ENABLE_LIBRARY_INDEX'] = True
+
+FEATURES['ORGANIZATIONS_APP'] = True
 SEARCH_ENGINE = "search.tests.mock_search_engine.MockSearchEngine"
 # Path at which to store the mock index
 MOCK_SEARCH_BACKING_FILE = (
     TEST_ROOT / "index_file.dat"
 ).abspath()
 
-# Generate a random UUID so that different runs of acceptance tests don't break each other
-import uuid
-SECRET_KEY = uuid.uuid4().hex
+# this secret key should be the same as lms/envs/bok_choy.py's
+SECRET_KEY = "very_secret_bok_choy_key"
+
+LMS_ROOT_URL = "http://localhost:8000"
 
 #####################################################################
 # Lastly, see if the developer has any local overrides.

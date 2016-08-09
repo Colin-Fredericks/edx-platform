@@ -5,14 +5,15 @@ from bok_choy.javascript import js_defined, wait_for_js
 from bok_choy.page_object import PageObject
 from bok_choy.promise import EmptyPromise
 from selenium.webdriver.support.select import Select
-from .component_editor import ComponentEditorView
-from .container import XBlockWrapper
-from ...pages.studio.users import UsersPageMixin
-from ...pages.studio.pagination import PaginatedMixin
+from common.test.acceptance.pages.studio.component_editor import ComponentEditorView
+from common.test.acceptance.pages.studio.container import XBlockWrapper
+from common.test.acceptance.pages.studio.users import UsersPageMixin
+from common.test.acceptance.pages.studio.pagination import PaginatedMixin
+from selenium.webdriver.common.keys import Keys
 
-from ..common.utils import confirm_prompt, wait_for_notification
+from common.test.acceptance.pages.common.utils import confirm_prompt, wait_for_notification
 
-from . import BASE_URL
+from common.test.acceptance.pages.studio import BASE_URL
 
 
 class LibraryPage(PageObject):
@@ -168,7 +169,8 @@ class StudioLibraryContentEditor(ComponentEditorView):
         Sets value of children count input
         """
         count_text = self.get_setting_element(self.COUNT_LABEL)
-        count_text.clear()
+        count_text.send_keys(Keys.CONTROL, "a")
+        count_text.send_keys(Keys.BACK_SPACE)
         count_text.send_keys(count)
         EmptyPromise(lambda: self.count == count, "count is updated in modal.").fulfill()
 

@@ -15,7 +15,6 @@ import re
 try:
     import dogstats_wrapper as dog_stats_api
 except ImportError:
-    # pylint: disable=invalid-name
     dog_stats_api = None
 
 from capa.capa_problem import LoncapaProblem, LoncapaSystem
@@ -32,9 +31,9 @@ from django.conf import settings
 
 log = logging.getLogger("edx.courseware")
 
-# Make '_' a no-op so we can scrape strings
+# Make '_' a no-op so we can scrape strings. Using lambda instead of
+#  `django.utils.translation.ugettext_noop` because Django cannot be imported in this file
 _ = lambda text: text
-
 
 # Generate this many different variants of problems with rerandomize=per_student
 NUM_RANDOMIZATION_BINS = 20
@@ -400,6 +399,7 @@ class CapaMixin(CapaFields):
             'ajax_url': self.runtime.ajax_url,
             'progress_status': Progress.to_js_status_str(progress),
             'progress_detail': Progress.to_js_detail_str(progress),
+            'content': self.get_problem_html(encapsulate=False),
         })
 
     def check_button_name(self):
@@ -584,7 +584,7 @@ class CapaMixin(CapaFields):
             html = warning
             try:
                 html += self.lcp.get_html()
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 # Couldn't do it. Give up.
                 log.exception("Unable to generate html from LoncapaProblem")
                 raise
@@ -604,7 +604,7 @@ class CapaMixin(CapaFields):
         demand_hints = self.lcp.tree.xpath("//problem/demandhint/hint")
         hint_index = hint_index % len(demand_hints)
 
-        _ = self.runtime.service(self, "i18n").ugettext  # pylint: disable=redefined-outer-name
+        _ = self.runtime.service(self, "i18n").ugettext
         hint_element = demand_hints[hint_index]
         hint_text = get_inner_html_from_xpath(hint_element)
         if len(demand_hints) == 1:
@@ -620,7 +620,7 @@ class CapaMixin(CapaFields):
         event_info['hint_index'] = hint_index
         event_info['hint_len'] = len(demand_hints)
         event_info['hint_text'] = hint_text
-        self.runtime.track_function('edx.problem.hint.demandhint_displayed', event_info)
+        self.runtime.publish(self, 'edx.problem.hint.demandhint_displayed', event_info)
 
         # We report the index of this hint, the client works out what index to use to get the next hint
         return {
@@ -938,7 +938,7 @@ class CapaMixin(CapaFields):
         # We only want to consider each key a single time, so we use set(data.keys())
         for key in set(data.keys()):
             # e.g. input_resistor_1 ==> resistor_1
-            _, _, name = key.partition('_')  # pylint: disable=redefined-outer-name
+            _, _, name = key.partition('_')
 
             # If key has no underscores, then partition
             # will return (key, '', '')
@@ -1067,8 +1067,11 @@ class CapaMixin(CapaFields):
             self.set_last_submission_time()
 
         except (StudentInputError, ResponseError, LoncapaProblemError) as inst:
-            log.warning("StudentInputError in capa_module:problem_check",
-                        exc_info=True)
+            if self.runtime.DEBUG:
+                log.warning(
+                    "StudentInputError in capa_module:problem_check",
+                    exc_info=True
+                )
 
             # Save the user's state before failing
             self.set_state_from_lcp()
@@ -1117,17 +1120,15 @@ class CapaMixin(CapaFields):
 
         if dog_stats_api:
             dog_stats_api.increment(metric_name('checks'), tags=[u'result:success'])
-            dog_stats_api.histogram(
-                metric_name('correct_pct'),
-                float(published_grade['grade']) / published_grade['max_grade'],
-            )
+            if published_grade['max_grade'] != 0:
+                dog_stats_api.histogram(
+                    metric_name('correct_pct'),
+                    float(published_grade['grade']) / published_grade['max_grade'],
+                )
             dog_stats_api.histogram(
                 metric_name('attempts'),
                 self.attempts,
             )
-
-        if hasattr(self.runtime, 'psychometrics_handler'):  # update PsychometricsData using callback
-            self.runtime.psychometrics_handler(self.get_state_for_lcp())
 
         # render problem into HTML
         html = self.get_problem_html(encapsulate=False)
@@ -1147,7 +1148,7 @@ class CapaMixin(CapaFields):
         # avoiding problems where an event_info is unmasked twice.
         event_unmasked = copy.deepcopy(event_info)
         self.unmask_event(event_unmasked)
-        self.runtime.track_function(title, event_unmasked)
+        self.runtime.publish(self, title, event_unmasked)
 
     def unmask_event(self, event_info):
         """
@@ -1376,10 +1377,6 @@ class CapaMixin(CapaFields):
         event_info['attempts'] = self.attempts
         self.track_function_unmask('problem_rescore', event_info)
 
-        # psychometrics should be called on rescoring requests in the same way as check-problem
-        if hasattr(self.runtime, 'psychometrics_handler'):  # update PsychometricsData using callback
-            self.runtime.psychometrics_handler(self.get_state_for_lcp())
-
         return {'success': success}
 
     def save_problem(self, data):
@@ -1429,6 +1426,7 @@ class CapaMixin(CapaFields):
         return {
             'success': True,
             'msg': msg,
+            'html': self.get_problem_html(encapsulate=False),
         }
 
     def reset_problem(self, _data):

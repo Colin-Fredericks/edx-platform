@@ -2,90 +2,74 @@ define(['jquery', 'js/utils/navigation'], function($) {
     'use strict';
 
     describe('Course Navigation Accordion', function() {
-        var accordion, button, heading, chapterContent, chapterMenu;
+        var accordion, chapterMenu;
+
+        function keyPressEvent(key) {
+            return $.Event('keydown', {which: key});
+        }
 
         beforeEach(function() {
             loadFixtures('js/fixtures/accordion.html');
 
             accordion = $('.accordion');
-            button = accordion.children('.button-chapter');
-            heading = button.children('.group-heading');
-            chapterContent = accordion.children('.chapter-content-container');
-            chapterMenu = chapterContent.children('.chapter-menu');
+            chapterMenu = accordion.children('.chapter-content-container').children('.chapter-menu');
 
-            spyOn($.fn, 'focus').andCallThrough();
+            this.KEY = $.ui.keyCode;
+            spyOn($.fn, 'focus').and.callThrough();
             edx.util.navigation.init();
         });
 
         describe('constructor', function() {
-
             describe('always', function() {
-
                 it('ensures accordion is present', function() {
                     expect(accordion.length).toBe(1);
                 });
 
                 it('ensures aria attributes are present', function() {
-                    expect(chapterContent).toHaveAttr({
-                        'aria-expanded': 'true'
-                    });
+                    expect(accordion.find('.button-chapter').first()).toHaveAttr('aria-expanded', 'true');
+                    expect(accordion.find('.button-chapter').last()).toHaveAttr('aria-expanded', 'false');
                 });
 
                 it('ensures only one active item', function() {
-                    expect(chapterMenu.find('.active').length).toBe(1);
+                    expect($(chapterMenu).find('.active').length).toBe(1);
                 });
             });
 
             describe('open section with mouse click', function() {
-
                 it('ensures new section is opened and previous section is closed', function() {
-                    button:eq(1).click();
+                    accordion.find('.button-chapter').last().trigger('click');
 
-                    expect(chapterContent:eq(0)).not.toHaveClass('is-open');
-                    expect(chapterContent:eq(1)).toHaveClass('is-open');
+                    expect(accordion.find('.chapter-content-container').first()).not.toHaveClass('is-open');
+                    expect(accordion.find('.chapter-content-container').last()).toHaveClass('is-open');
 
-                    expect(button:eq(0)).not.toHaveClass('is-open');
-                    expect(button:eq(1)).toHaveClass('is-open');
-
-                    expect(chapterContent:eq(1).focus).toHaveBeenCalled();
+                    expect(accordion.find('.button-chapter').first()).not.toHaveClass('is-open');
+                    expect(accordion.find('.button-chapter').last()).toHaveClass('is-open');
                 });
 
                 it('ensure proper aria and attrs', function() {
-                    expect(chapterContent:eq(1)).toHaveAttr({
-                        'aria-expanded': 'false'
-                    });
-                    expect(chapterContent:eq(0)).toHaveAttr({
-                        'aria-expanded': 'true'
-                    });
+                    accordion.find('.button-chapter').last().trigger('click');
+
+                    expect(accordion.find('.button-chapter').first()).toHaveAttr('aria-expanded', 'false');
+                    expect(accordion.find('.button-chapter').last()).toHaveAttr('aria-expanded', 'true');
                 });
             });
 
             describe('open section with spacebar', function() {
-
-                function keyPressEvent(key) {
-                    return $.Event('keydown', { keyCode: key });
-                }
-
                 it('ensures new section is opened and previous section is closed', function() {
-                    button:eq(1).focus();
-                    button.trigger(keyPressEvent(32)); // Spacebar
+                    accordion.find('.button-chapter').last().focus().trigger(keyPressEvent(this.KEY.SPACE));
 
-                    expect(chapterContent:eq(0)).not.toHaveClass('is-open');
-                    expect(chapterContent:eq(1)).toHaveClass('is-open');
+                    expect(accordion.find('.chapter-content-container').first()).not.toHaveClass('is-open');
+                    expect(accordion.find('.chapter-content-container').last()).toHaveClass('is-open');
 
-                    expect(button:eq(0)).not.toHaveClass('is-open');
-                    expect(button:eq(1)).toHaveClass('is-open');
-
-                    expect(chapterContent:eq(1).focus).toHaveBeenCalled();
+                    expect(accordion.find('.button-chapter').first()).not.toHaveClass('is-open');
+                    expect(accordion.find('.button-chapter').last()).toHaveClass('is-open');
                 });
 
                 it('ensure proper aria and attrs', function() {
-                    expect(chapterContent:eq(1)).toHaveAttr({
-                        'aria-expanded': 'false'
-                    });
-                    expect(chapterContent:eq(0)).toHaveAttr({
-                        'aria-expanded': 'true'
-                    });
+                    accordion.find('.button-chapter').last().focus().trigger(keyPressEvent(this.KEY.SPACE));
+
+                    expect(accordion.find('.button-chapter').first()).toHaveAttr('aria-expanded', 'false');
+                    expect(accordion.find('.button-chapter').last()).toHaveAttr('aria-expanded', 'true');
                 });
             });
         });

@@ -61,17 +61,17 @@ class UserManagementHelperTest(TestCase):
     def test_random_username_generator(self):
         for _idx in range(1000):
             username = users.generate_random_edx_username()
-            self.assertTrue(len(username) <= 30, 'Username too long')
+            self.assertLessEqual(len(username), 30, 'Username too long')
             # Check that the username contains only allowable characters
             for char in range(len(username)):
-                self.assertTrue(
-                    username[char] in string.ascii_letters + string.digits,
+                self.assertIn(
+                    username[char], string.ascii_letters + string.digits,
                     "Username has forbidden character '{}'".format(username[char])
                 )
 
 
-@patch('lti_provider.users.switch_user')
-@patch('lti_provider.users.create_lti_user')
+@patch('lti_provider.users.switch_user', autospec=True)
+@patch('lti_provider.users.create_lti_user', autospec=True)
 class AuthenticateLtiUserTest(TestCase):
     """
     Tests for the authenticate_lti_user function in users.py

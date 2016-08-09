@@ -93,12 +93,12 @@ class Status(object):
         }
         tooltips = {
             # Translators: these are tooltips that indicate the state of an assessment question
-            'correct': _('This is correct.'),
-            'incorrect': _('This is incorrect.'),
-            'partially-correct': _('This is partially correct.'),
-            'unanswered': _('This is unanswered.'),
-            'unsubmitted': _('This is unanswered.'),
-            'queued': _('This is being processed.'),
+            'correct': _('This answer is correct.'),
+            'incorrect': _('This answer is incorrect.'),
+            'partially-correct': _('This answer is partially correct.'),
+            'unanswered': _('This answer is unanswered.'),
+            'unsubmitted': _('This answer is unanswered.'),
+            'queued': _('This answer is being processed.'),
         }
         self.display_name = names.get(status, unicode(status))
         self.display_tooltip = tooltips.get(status, u'')
@@ -467,10 +467,12 @@ class ChoiceGroup(InputTypeBase):
             raise Exception(msg)
 
         self.choices = self.extract_choices(self.xml, i18n)
-        self._choices_map = dict(self.choices,)  # pylint: disable=attribute-defined-outside-init
+        self._choices_map = dict(self.choices,)
 
     @classmethod
     def get_attributes(cls):
+        # Make '_' a no-op so we can scrape strings. Using lambda instead of
+        #  `django.utils.translation.ugettext_noop` because Django cannot be imported in this file
         _ = lambda text: text
         return [Attribute("show_correctness", "always"),
                 Attribute('label', ''),
@@ -1287,7 +1289,7 @@ class FormulaEquationInput(InputTypeBase):
             # At some point, we might want to mark invalid variables as red
             # or something, and this is where we would need to pass those in.
             result['preview'] = latex_preview(formula)
-        except pyparsing.ParseException as err:
+        except pyparsing.ParseException:
             result['error'] = _("Sorry, couldn't parse formula")
             result['formula'] = formula
         except Exception:
@@ -1612,7 +1614,7 @@ class AnnotationInput(InputTypeBase):
 
 @registry.register
 class ChoiceTextGroup(InputTypeBase):
-    """
+    r"""
     Groups of radiobutton/checkboxes with text inputs.
 
     Examples:
@@ -1707,6 +1709,8 @@ class ChoiceTextGroup(InputTypeBase):
         """
         Returns a list of `Attribute` for this problem type
         """
+        # Make '_' a no-op so we can scrape strings. Using lambda instead of
+        #  `django.utils.translation.ugettext_noop` because Django cannot be imported in this file
         _ = lambda text: text
         return [
             Attribute("show_correctness", "always"),

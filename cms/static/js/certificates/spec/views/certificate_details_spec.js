@@ -1,6 +1,6 @@
 // Jasmine Test Suite: Certifiate Details View
 
-define([ // jshint ignore:line
+define([
     'underscore',
     'js/models/course',
     'js/certificates/collections/certificates',
@@ -8,7 +8,7 @@ define([ // jshint ignore:line
     'js/certificates/views/certificate_details',
     'js/certificates/views/certificate_preview',
     'common/js/components/views/feedback_notification',
-    'common/js/spec_helpers/ajax_helpers',
+    'edx-ui-toolkit/js/utils/spec-helpers/ajax-helpers',
     'common/js/spec_helpers/template_helpers',
     'common/js/spec_helpers/view_helpers',
     'js/spec_helpers/validation_helpers',
@@ -47,27 +47,6 @@ function(_, Course, CertificatesCollection, CertificateModel, CertificateDetails
         ViewHelpers.verifyPromptHidden(promptSpy);
     };
 
-    beforeEach(function() {
-        window.course = new Course({
-            id: '5',
-            name: 'Course Name',
-            url_name: 'course_name',
-            org: 'course_org',
-            num: 'course_num',
-            revision: 'course_rev'
-        });
-        window.certWebPreview = new CertificatePreview({
-            course_modes: ['honor', 'test'],
-            certificate_web_view_url: '/users/1/courses/orgX/009/2016'
-        });
-        window.CMS.User = {isGlobalStaff: true};
-    });
-
-    afterEach(function() {
-        delete window.course;
-        delete window.CMS.User;
-    });
-
     describe('Certificate Details Spec:', function() {
         var setValuesToInputs = function (view, values) {
             _.each(values, function (value, selector) {
@@ -79,7 +58,35 @@ function(_, Course, CertificatesCollection, CertificateModel, CertificateDetails
         };
 
         beforeEach(function() {
+            window.course = new Course({
+                id: '5',
+                name: 'Course Name',
+                url_name: 'course_name',
+                org: 'course_org',
+                num: 'course_num',
+                revision: 'course_rev'
+            });
+            window.certWebPreview = new CertificatePreview({
+                course_modes: ['honor', 'test'],
+                certificate_web_view_url: '/users/1/courses/orgX/009/2016'
+            });
+            window.CMS.User = {isGlobalStaff: true};
+
             TemplateHelpers.installTemplates(['certificate-details', 'signatory-details', 'signatory-editor', 'signatory-actions'], true);
+
+            window.course = new Course({
+                id: '5',
+                name: 'Course Name',
+                url_name: 'course_name',
+                org: 'course_org',
+                num: 'course_num',
+                revision: 'course_rev'
+            });
+            window.certWebPreview = new CertificatePreview({
+                course_modes: ['honor', 'test'],
+                certificate_web_view_url: '/users/1/courses/orgX/009/2016'
+            });
+            window.CMS.User = {isGlobalStaff: true};
 
             this.newModelOptions = {add: true};
             this.model = new CertificateModel({
@@ -97,8 +104,20 @@ function(_, Course, CertificatesCollection, CertificateModel, CertificateDetails
                 model: this.model
             });
             appendSetFixtures(this.view.render().el);
-            CustomMatchers(this); // jshint ignore:line
+            CustomMatchers();
         });
+
+        afterEach(function() {
+            delete window.course;
+            delete window.certWebPreview;
+            delete window.CMS.User;
+        });
+
+        afterEach(function() {
+            delete window.course;
+            delete window.CMS.User;
+        });
+
 
         describe('The Certificate Details view', function() {
 
@@ -122,7 +141,7 @@ function(_, Course, CertificatesCollection, CertificateModel, CertificateDetails
             });
 
             it('should have empty certificate collection if there is an error parsing certifcate JSON', function () {
-                var CERTIFICATE_INVALID_JSON = '[{"course_title": Test certificate course title override, "signatories":"[]"}]'; // jshint ignore:line
+                var CERTIFICATE_INVALID_JSON = '[{"course_title": Test certificate course title override, "signatories":"[]"}]';  // eslint-disable-line max-len
                 var collection_length = this.collection.length;
                 this.collection.parse(CERTIFICATE_INVALID_JSON);
                 //collection length should remain the same since we have error parsing JSON
@@ -235,7 +254,7 @@ function(_, Course, CertificatesCollection, CertificateModel, CertificateDetails
                 this.view.$(SELECTORS.signatory_panel_save).click();
 
                 ViewHelpers.verifyNotificationShowing(notificationSpy, /Saving/);
-                requests[0].respond(200);
+                requests[0].respond(204);
                 ViewHelpers.verifyNotificationHidden(notificationSpy);
 
                 expect(this.view.$(SELECTORS.signatory_name_value)).toContainText('New Signatory Test Name');
@@ -243,24 +262,6 @@ function(_, Course, CertificatesCollection, CertificateModel, CertificateDetails
                 expect(
                     this.view.$(SELECTORS.signatory_organization_value)
                 ).toContainText('New Signatory Test Organization');
-            });
-            it('should not allow invalid data when saving changes made during in-line signatory editing', function() {
-                this.view.$(SELECTORS.edit_signatory).click();
-
-                setValuesToInputs(this.view, {
-                    inputSignatoryName: 'New Signatory Test Name'
-                });
-
-                setValuesToInputs(this.view, {
-                    inputSignatoryTitle: 'This is a certificate signatory title that has waaaaaaay more than 106 characters, in order to cause an exception.'
-                });
-
-                setValuesToInputs(this.view, {
-                    inputSignatoryOrganization: 'New Signatory Test Organization'
-                });
-
-                this.view.$(SELECTORS.signatory_panel_save).click();
-                expect(this.view.$(SELECTORS.inputSignatoryTitle).parent()).toHaveClass('error');
             });
         });
     });

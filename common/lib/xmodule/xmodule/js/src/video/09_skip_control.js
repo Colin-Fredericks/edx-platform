@@ -1,7 +1,7 @@
 (function(define) {
-'use strict';
+    'use strict';
 // VideoSkipControl module.
-define(
+    define(
 'video/09_skip_control.js', [],
 function() {
     /**
@@ -28,13 +28,14 @@ function() {
 
     SkipControl.prototype = {
         template: [
-            '<a class="video_control skip skip-control" href="#" title="',
-                gettext('Do not show again'), '" role="button" aria-disabled="false">',
-                gettext('Do not show again'),
-            '</a>'
+            '<button class="control video_control skip skip-control" aria-disabled="false" title="',
+            gettext('Do not show again'),
+            '">',
+            '<span class="icon fa fa-step-forward" aria-hidden="true"></span>',
+            '</button>'
         ].join(''),
 
-        destroy: function () {
+        destroy: function() {
             this.el.remove();
             this.state.el.off('.skip');
             delete this.state.videoSkipControl;
@@ -51,7 +52,7 @@ function() {
          * initial configuration.
          */
         render: function() {
-            this.state.el.find('.vcr a').after(this.el);
+            this.state.el.find('.vcr .control').after(this.el);
         },
 
         /** Bind any necessary function callbacks to DOM events. */
@@ -63,7 +64,7 @@ function() {
             });
         },
 
-        onClick: function (event) {
+        onClick: function(event) {
             event.preventDefault();
             this.state.videoCommands.execute('skip', true);
         }

@@ -15,7 +15,8 @@ from opaque_keys import InvalidKeyError
 from courseware.access import is_mobile_available_for_user
 from courseware.model_data import FieldDataCache
 from courseware.module_render import get_module_for_descriptor
-from courseware.views import get_current_child, save_positions_recursively_up
+from courseware.views.index import save_positions_recursively_up
+from courseware.views.views import get_current_child
 from student.models import CourseEnrollment, User
 
 from xblock.fields import Scope
@@ -60,7 +61,7 @@ class UserDetail(generics.RetrieveAPIView):
     """
     queryset = (
         User.objects.all()
-        .select_related('profile', 'course_enrollments')
+        .select_related('profile')
     )
     serializer_class = UserSerializer
     lookup_field = 'username'
@@ -182,8 +183,8 @@ class UserCourseStatus(views.APIView):
         """
         Update the ID of the module that the specified user last visited in the specified course.
         """
-        module_id = request.DATA.get("last_visited_module_id")
-        modification_date_string = request.DATA.get("modification_date")
+        module_id = request.data.get("last_visited_module_id")
+        modification_date_string = request.data.get("modification_date")
         modification_date = None
         if modification_date_string:
             modification_date = dateparse.parse_datetime(modification_date_string)
@@ -225,16 +226,26 @@ class UserCourseEnrollmentsList(generics.ListAPIView):
           course.
         * course: A collection of the following data about the course.
 
+        * courseware_access: A JSON representation with access information for the course,
+          including any access errors.
+
+          * course_about: The URL to the course about page.
           * course_handouts: The URI to get data for course handouts.
           * course_image: The path to the course image.
           * course_updates: The URI to get data for course updates.
+          * discussion_url: The URI to access data for course discussions if
+            it is enabled, otherwise null.
           * end: The end date of the course.
           * id: The unique ID of the course.
-          * latest_updates: Reserved for future use.
           * name: The name of the course.
           * number: The course number.
           * org: The organization that created the course.
           * start: The date and time when the course starts.
+          * start_display:
+            If start_type is a string, then the advertised_start date for the course.
+            If start_type is a timestamp, then a formatted date for the start of the course.
+            If start_type is empty, then the value is None and it indicates that the course has not yet started.
+          * start_type: One of either "string", "timestamp", or "empty"
           * subscription_id: A unique "clean" (alphanumeric with '_') ID of
             the course.
           * video_outline: The URI to get the list of all videos that the user
@@ -250,6 +261,14 @@ class UserCourseEnrollmentsList(generics.ListAPIView):
     queryset = CourseEnrollment.objects.all()
     serializer_class = CourseEnrollmentSerializer
     lookup_field = 'username'
+
+    # In Django Rest Framework v3, there is a default pagination
+    # class that transmutes the response data into a dictionary
+    # with pagination information.  The original response data (a list)
+    # is stored in a "results" value of the dictionary.
+    # For backwards compatibility with the existing API, we disable
+    # the default behavior by setting the pagination_class to None.
+    pagination_class = None
 
     def get_queryset(self):
         enrollments = self.queryset.filter(

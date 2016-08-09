@@ -3,17 +3,21 @@
 Tests the "preview" selector in the LMS that allows changing between Staff, Student, and Content Groups.
 """
 
-from ..helpers import UniqueCourseTest, create_user_partition_json
-from ...pages.studio.auto_auth import AutoAuthPage
-from ...pages.lms.courseware import CoursewarePage
-from ...pages.lms.instructor_dashboard import InstructorDashboardPage
-from ...pages.lms.staff_view import StaffPage
-from ...fixtures.course import CourseFixture, XBlockFixtureDesc
+
+from nose.plugins.attrib import attr
+
+from common.test.acceptance.tests.helpers import UniqueCourseTest, create_user_partition_json
+from common.test.acceptance.pages.studio.auto_auth import AutoAuthPage
+from common.test.acceptance.pages.lms.courseware import CoursewarePage
+from common.test.acceptance.pages.lms.instructor_dashboard import InstructorDashboardPage
+from common.test.acceptance.pages.lms.staff_view import StaffPage
+from common.test.acceptance.fixtures.course import CourseFixture, XBlockFixtureDesc
 from bok_choy.promise import EmptyPromise
 from xmodule.partitions.partitions import Group
 from textwrap import dedent
 
 
+@attr(shard=3)
 class StaffViewTest(UniqueCourseTest):
     """
     Tests that verify the staff view.
@@ -51,6 +55,7 @@ class StaffViewTest(UniqueCourseTest):
         return staff_page
 
 
+@attr(shard=3)
 class CourseWithoutContentGroupsTest(StaffViewTest):
     """
     Setup for tests that have no content restricted to specific content groups.
@@ -81,6 +86,7 @@ class CourseWithoutContentGroupsTest(StaffViewTest):
         )
 
 
+@attr(shard=3)
 class StaffViewToggleTest(CourseWithoutContentGroupsTest):
     """
     Tests for the staff view toggle button.
@@ -97,6 +103,7 @@ class StaffViewToggleTest(CourseWithoutContentGroupsTest):
         self.assertFalse(course_page.has_tab('Instructor'))
 
 
+@attr(shard=3)
 class StaffDebugTest(CourseWithoutContentGroupsTest):
     """
     Tests that verify the staff debug info.
@@ -228,6 +235,7 @@ class StaffDebugTest(CourseWithoutContentGroupsTest):
                          'for user {}'.format(self.USERNAME), msg)
 
 
+@attr(shard=3)
 class CourseWithContentGroupsTest(StaffViewTest):
     """
     Verifies that changing the "View this course as" selector works properly for content groups.

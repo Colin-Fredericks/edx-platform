@@ -1,10 +1,10 @@
 /**
  * Provides helper methods for invoking Studio modal windows in Jasmine tests.
  */
-;(function (define) {
+(function(define) {
     'use strict';
-define(["jquery", "common/js/components/views/feedback_notification", "common/js/components/views/feedback_prompt",
-        'common/js/spec_helpers/ajax_helpers'],
+    define(['jquery', 'common/js/components/views/feedback_notification', 'common/js/components/views/feedback_prompt',
+        'edx-ui-toolkit/js/utils/spec-helpers/ajax-helpers'],
     function($, NotificationView, Prompt, AjaxHelpers) {
         var installViewTemplates, createFeedbackSpy, verifyFeedbackShowing,
             verifyFeedbackHidden, createNotificationSpy, verifyNotificationShowing,
@@ -17,8 +17,11 @@ define(["jquery", "common/js/components/views/feedback_notification", "common/js
         };
 
         createFeedbackSpy = function(type, intent) {
-            var feedbackSpy = spyOnConstructor(type, intent, ['show', 'hide']);
-            feedbackSpy.show.andReturn(feedbackSpy);
+            var feedbackSpy = jasmine.stealth.spyOnConstructor(type, intent, ['show', 'hide']);
+            feedbackSpy.show.and.returnValue(feedbackSpy);
+            if (afterEach) {
+                afterEach(jasmine.stealth.clearSpies);
+            }
             return feedbackSpy;
         };
 
@@ -27,7 +30,7 @@ define(["jquery", "common/js/components/views/feedback_notification", "common/js
             expect(feedbackSpy.constructor).toHaveBeenCalled();
             expect(feedbackSpy.show).toHaveBeenCalled();
             expect(feedbackSpy.hide).not.toHaveBeenCalled();
-            options = feedbackSpy.constructor.mostRecentCall.args[0];
+            options = feedbackSpy.constructor.calls.mostRecent().args[0];
             expect(options.title).toMatch(text);
         };
 
@@ -54,9 +57,9 @@ define(["jquery", "common/js/components/views/feedback_notification", "common/js
         confirmPrompt = function(promptSpy, pressSecondaryButton) {
             expect(promptSpy.constructor).toHaveBeenCalled();
             if (pressSecondaryButton) {
-                promptSpy.constructor.mostRecentCall.args[0].actions.secondary.click(promptSpy);
+                promptSpy.constructor.calls.mostRecent().args[0].actions.secondary.click(promptSpy);
             } else {
-                promptSpy.constructor.mostRecentCall.args[0].actions.primary.click(promptSpy);
+                promptSpy.constructor.calls.mostRecent().args[0].actions.primary.click(promptSpy);
             }
         };
 
@@ -97,14 +100,14 @@ define(["jquery", "common/js/components/views/feedback_notification", "common/js
             }
         };
 
-        clickDeleteItem = function (that, promptSpy, promptText) {
+        clickDeleteItem = function(that, promptSpy, promptText) {
             that.view.$('.delete').click();
             verifyPromptShowing(promptSpy, promptText);
             confirmPrompt(promptSpy);
             verifyPromptHidden(promptSpy);
         };
 
-        patchAndVerifyRequest = function (requests, url, notificationSpy) {
+        patchAndVerifyRequest = function(requests, url, notificationSpy) {
             // Backbone.emulateHTTP is enabled in our system, so setting this
             // option  will fake PUT, PATCH and DELETE requests with a HTTP POST,
             // setting the X-HTTP-Method-Override header with the true method.
@@ -113,14 +116,14 @@ define(["jquery", "common/js/components/views/feedback_notification", "common/js
             verifyNotificationShowing(notificationSpy, /Deleting/);
         };
 
-        submitAndVerifyFormSuccess = function (view, requests, notificationSpy) {
+        submitAndVerifyFormSuccess = function(view, requests, notificationSpy) {
             view.$('form').submit();
             verifyNotificationShowing(notificationSpy, /Saving/);
             AjaxHelpers.respondWithJson(requests, {});
             verifyNotificationHidden(notificationSpy);
         };
 
-        submitAndVerifyFormError = function (view, requests, notificationSpy) {
+        submitAndVerifyFormError = function(view, requests, notificationSpy) {
             view.$('form').submit();
             verifyNotificationShowing(notificationSpy, /Saving/);
             AjaxHelpers.respondWithError(requests);

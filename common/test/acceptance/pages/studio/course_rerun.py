@@ -2,8 +2,8 @@
 Course rerun page in Studio
 """
 
-from .course_page import CoursePage
-from .utils import set_input_value
+from common.test.acceptance.pages.studio.course_page import CoursePage
+from common.test.acceptance.pages.studio.utils import set_input_value
 
 
 class CourseRerunPage(CoursePage):
@@ -39,3 +39,5 @@ class CourseRerunPage(CoursePage):
         Clicks the create rerun button.
         """
         self.q(css='.rerun-course-save')[0].click()
+        # Clicking on the course will trigger an ajax event
+        self.wait_for_ajax()

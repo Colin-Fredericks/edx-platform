@@ -1,4 +1,5 @@
 """ Commerce API v0 view tests. """
+from datetime import datetime, timedelta
 import json
 import itertools
 from uuid import uuid4
@@ -10,6 +11,7 @@ from django.test import TestCase
 from django.test.utils import override_settings
 import mock
 from nose.plugins.attrib import attr
+import pytz
 from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
 from xmodule.modulestore.tests.factories import CourseFactory
 
@@ -18,16 +20,17 @@ from commerce.tests import TEST_BASKET_ID, TEST_ORDER_NUMBER, TEST_PAYMENT_DATA,
 from commerce.tests.mocks import mock_basket_order, mock_create_basket
 from commerce.tests.test_views import UserMixin
 from course_modes.models import CourseMode
-from ecommerce_api_client import exceptions
+from edx_rest_api_client import exceptions
 from embargo.test_utils import restrict_course
 from enrollment.api import get_enrollment
 from openedx.core.lib.django_test_client_utils import get_absolute_url
 from student.models import CourseEnrollment
 from student.tests.factories import CourseModeFactory
 from student.tests.tests import EnrollmentEventTestMixin
+from xmodule.modulestore.django import modulestore
 
 
-@attr('shard_1')
+@attr(shard=1)
 @ddt.ddt
 @override_settings(ECOMMERCE_API_URL=TEST_API_URL, ECOMMERCE_API_SIGNING_KEY=TEST_API_SIGNING_KEY)
 class BasketsViewTests(EnrollmentEventTestMixin, UserMixin, ModuleStoreTestCase):
@@ -81,11 +84,13 @@ class BasketsViewTests(EnrollmentEventTestMixin, UserMixin, ModuleStoreTestCase)
         # TODO Verify this is the best method to create CourseMode objects.
         # TODO Find/create constants for the modes.
         for mode in [CourseMode.HONOR, CourseMode.VERIFIED, CourseMode.AUDIT]:
+            sku_string = uuid4().hex.decode('ascii')
             CourseModeFactory.create(
                 course_id=self.course.id,
                 mode_slug=mode,
                 mode_display_name=mode,
-                sku=uuid4().hex.decode('ascii')
+                sku=sku_string,
+                bulk_sku='BULK-{}'.format(sku_string)
             )
 
         # Ignore events fired from UserFactory creation
@@ -197,7 +202,7 @@ class BasketsViewTests(EnrollmentEventTestMixin, UserMixin, ModuleStoreTestCase)
         with mock_create_basket(response=return_value):
             self._test_successful_ecommerce_api_call(False)
 
-    def _test_course_without_sku(self):
+    def _test_course_without_sku(self, enrollment_mode=CourseMode.DEFAULT_MODE_SLUG):
         """
         Validates the view bypasses the E-Commerce API when the course has no CourseModes with SKUs.
         """
@@ -207,13 +212,16 @@ class BasketsViewTests(EnrollmentEventTestMixin, UserMixin, ModuleStoreTestCase)
 
         # Validate the response content
         self.assertEqual(response.status_code, 200)
-        msg = Messages.NO_SKU_ENROLLED.format(enrollment_mode='honor', course_id=self.course.id,
-                                              username=self.user.username)
+        msg = Messages.NO_SKU_ENROLLED.format(
+            enrollment_mode=enrollment_mode,
+            course_id=self.course.id,
+            username=self.user.username
+        )
         self.assertResponseMessage(response, msg)
 
-    def test_course_without_sku(self):
+    def test_course_without_sku_default(self):
         """
-        If the course does NOT have a SKU, the user should be enrolled in the course (under the honor mode) and
+        If the course does NOT have a SKU, the user should be enrolled in the course (under the default mode) and
         redirected to the user dashboard.
         """
         # Remove SKU from all course modes
@@ -222,6 +230,24 @@ class BasketsViewTests(EnrollmentEventTestMixin, UserMixin, ModuleStoreTestCase)
             course_mode.save()
 
         self._test_course_without_sku()
+
+    def test_course_without_sku_honor(self):
+        """
+        If the course does not have an SKU and has an honor mode, the user
+        should be enrolled as honor. This ensures backwards
+        compatibility with courses existing before the removal of
+        honor certificates.
+        """
+        # Remove all existing course modes
+        CourseMode.objects.filter(course_id=self.course.id).delete()
+        # Ensure that honor mode exists
+        CourseMode(
+            mode_slug=CourseMode.HONOR,
+            mode_display_name="Honor Cert",
+            course_id=self.course.id
+        ).save()
+        # We should be enrolled in honor mode
+        self._test_course_without_sku(enrollment_mode=CourseMode.HONOR)
 
     @override_settings(ECOMMERCE_API_URL=None, ECOMMERCE_API_SIGNING_KEY=None)
     def test_ecommerce_service_not_configured(self):
@@ -240,19 +266,20 @@ class BasketsViewTests(EnrollmentEventTestMixin, UserMixin, ModuleStoreTestCase)
         self.assertTrue(CourseEnrollment.is_enrolled(self.user, self.course.id))
 
     def assertProfessionalModeBypassed(self):
-        """ Verifies that the view returns HTTP 406 when a course with no honor mode is encountered. """
+        """ Verifies that the view returns HTTP 406 when a course with no honor or audit mode is encountered. """
 
         CourseMode.objects.filter(course_id=self.course.id).delete()
         mode = CourseMode.NO_ID_PROFESSIONAL_MODE
+        sku_string = uuid4().hex.decode('ascii')
         CourseModeFactory.create(course_id=self.course.id, mode_slug=mode, mode_display_name=mode,
-                                 sku=uuid4().hex.decode('ascii'))
+                                 sku=sku_string, bulk_sku='BULK-{}'.format(sku_string))
 
         with mock_create_basket(expect_called=False):
             response = self._post_to_view()
 
         # The view should return an error status code
         self.assertEqual(response.status_code, 406)
-        msg = Messages.NO_HONOR_MODE.format(course_id=self.course.id)
+        msg = Messages.NO_DEFAULT_ENROLLMENT_MODE.format(course_id=self.course.id)
         self.assertResponseMessage(response, msg)
 
     def test_course_with_professional_mode_only(self):
@@ -324,8 +351,18 @@ class BasketsViewTests(EnrollmentEventTestMixin, UserMixin, ModuleStoreTestCase)
         self.assertEqual(mock_update.called, is_opt_in)
         self.assertEqual(response.status_code, 200)
 
+    def test_closed_course(self):
+        """
+        Ensure that the view does not attempt to create a basket for closed
+        courses.
+        """
+        self.course.enrollment_end = datetime.now(pytz.UTC) - timedelta(days=1)
+        modulestore().update_item(self.course, self.user.id)  # pylint:disable=no-member
+        with mock_create_basket(expect_called=False):
+            self.assertEqual(self._post_to_view().status_code, 406)
 
-@attr('shard_1')
+
+@attr(shard=1)
 @override_settings(ECOMMERCE_API_URL=TEST_API_URL, ECOMMERCE_API_SIGNING_KEY=TEST_API_SIGNING_KEY)
 class BasketOrderViewTests(UserMixin, TestCase):
     """ Tests for the basket order view. """

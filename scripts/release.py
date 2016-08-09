@@ -126,7 +126,7 @@ def ensure_pr_fetch():
 
 def get_github_creds():
     """
-    Returns Github credentials if they exist, as a two-tuple of (username, token).
+    Returns GitHub credentials if they exist, as a two-tuple of (username, token).
     Otherwise, return None.
     """
     netrc_auth = requests.utils.get_netrc_auth("https://api.github.com")
@@ -153,8 +153,8 @@ def create_github_creds():
         "note": "edx-release",
         "scopes": ["repo"],
     }
-    username = raw_input("Github username: ")
-    password = getpass.getpass("Github password: ")
+    username = raw_input("GitHub username: ")
+    password = getpass.getpass("GitHub password: ")
     response = requests.post(
         "https://api.github.com/authorizations",
         auth=(username, password),
@@ -175,7 +175,7 @@ def create_github_creds():
         if message != "Validation Failed":
             raise requests.exceptions.RequestException(message)
         else:
-            # A token called "edx-release" already exists on Github.
+            # A token called "edx-release" already exists on GitHub.
             # Delete it, and try again.
             token_id = get_github_auth_id(username, password, "edx-release")
             if token_id:
@@ -194,7 +194,7 @@ def create_github_creds():
 
 def get_github_auth_id(username, password, note):
     """
-    Return the ID associated with the Github auth token with the given note.
+    Return the ID associated with the GitHub auth token with the given note.
     If no such auth token exists, return None.
     """
     response = requests.get(
@@ -225,7 +225,7 @@ def delete_github_auth_token(username, password, token_id):
 
 def ensure_github_creds(attempts=3):
     """
-    Make sure that we have Github OAuth credentials. This will check the user's
+    Make sure that we have GitHub OAuth credentials. This will check the user's
     .netrc file, as well as the ~/.config/edx-release file. If no credentials
     exist in either place, it will prompt the user to create OAuth credentials,
     and store them in ~/.config/edx-release.
@@ -236,7 +236,7 @@ def ensure_github_creds(attempts=3):
         return False
 
     # Looks like we need to create the OAuth creds
-    print("We need to set up OAuth authentication with Github's API. "
+    print("We need to set up OAuth authentication with GitHub's API. "
           "Your password will not be stored.", file=sys.stderr)
     token = None
     for _ in range(attempts):
@@ -251,7 +251,7 @@ def ensure_github_creds(attempts=3):
         else:
             break
     if token:
-        print("Successfully authenticated to Github", file=sys.stderr)
+        print("Successfully authenticated to GitHub", file=sys.stderr)
     if not token:
         print("Too many invalid authentication attempts.", file=sys.stderr)
         return False
@@ -329,7 +329,7 @@ def get_merge_commit(commit, branch="master"):
 
 def get_pr_info(num):
     """
-    Returns the info from the Github API
+    Returns the info from the GitHub API
     """
     url = "https://api.github.com/repos/edx/edx-platform/pulls/{num}".format(num=num)
     username, token = get_github_creds()
@@ -400,6 +400,14 @@ def prs_by_email(start_ref, end_ref):
             pass  # this commit will be included in the commits_without_prs table
         else:
             email = emails.get(merge.author.email, merge.author.email)
+            if email.endswith("@users.noreply.github.com"):
+                # A bogus GitHub address, look up their GitHub name in
+                # people.yaml
+                username = email.split("@")[0]
+                try:
+                    email = people[username]['email']
+                except KeyError:
+                    pass
             unordered_data[email].add((pr_num, merge))
 
     ordered_data = collections.OrderedDict()

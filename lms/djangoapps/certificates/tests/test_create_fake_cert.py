@@ -9,7 +9,7 @@ from certificates.management.commands import create_fake_cert
 from certificates.models import GeneratedCertificate
 
 
-@attr('shard_1')
+@attr(shard=1)
 class CreateFakeCertTest(TestCase):
     """Tests for the create_fake_certs management command. """
 
@@ -28,7 +28,7 @@ class CreateFakeCertTest(TestCase):
             cert_mode='verified',
             grade='0.89'
         )
-        cert = GeneratedCertificate.objects.get(user=self.user, course_id=self.COURSE_KEY)
+        cert = GeneratedCertificate.eligible_certificates.get(user=self.user, course_id=self.COURSE_KEY)
         self.assertEqual(cert.status, 'downloadable')
         self.assertEqual(cert.mode, 'verified')
         self.assertEqual(cert.grade, '0.89')
@@ -41,7 +41,7 @@ class CreateFakeCertTest(TestCase):
             unicode(self.COURSE_KEY),
             cert_mode='honor'
         )
-        cert = GeneratedCertificate.objects.get(user=self.user, course_id=self.COURSE_KEY)
+        cert = GeneratedCertificate.eligible_certificates.get(user=self.user, course_id=self.COURSE_KEY)
         self.assertEqual(cert.mode, 'honor')
 
     def test_too_few_args(self):

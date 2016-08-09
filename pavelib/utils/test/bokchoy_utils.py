@@ -6,22 +6,31 @@ import os
 import time
 import httplib
 import subprocess
-from paver.easy import sh
+from paver import tasks
+from paver.easy import sh, task, cmdopts, needs
 from pavelib.utils.envs import Env
 from pavelib.utils.process import run_background_process
+from pavelib.utils.test.bokchoy_options import (
+    BOKCHOY_COVERAGERC, BOKCHOY_DEFAULT_STORE, BOKCHOY_DEFAULT_STORE_DEPR
+)
+from pavelib.utils.timer import timed
 
 try:
     from pygments.console import colorize
 except ImportError:
-    colorize = lambda color, text: text  # pylint: disable=invalid-name
+    colorize = lambda color, text: text
 
 __test__ = False  # do not collect
 
 
-def start_servers(default_store):
+@task
+@cmdopts([BOKCHOY_COVERAGERC, BOKCHOY_DEFAULT_STORE, BOKCHOY_DEFAULT_STORE_DEPR])
+@timed
+def start_servers(options):
     """
     Start the servers we will run tests on, returns PIDs for servers.
     """
+    coveragerc = options.get('coveragerc', Env.BOK_CHOY_COVERAGERC)
 
     def start_server(cmd, logfile, cwd=None):
         """
@@ -37,8 +46,8 @@ def start_servers(default_store):
             "coverage run --rcfile={coveragerc} -m "
             "manage {service} --settings bok_choy runserver "
             "{address} --traceback --noreload".format(
-                default_store=default_store,
-                coveragerc=Env.BOK_CHOY_COVERAGERC,
+                default_store=options.default_store,
+                coveragerc=coveragerc,
                 service=service,
                 address=address,
             )
@@ -67,6 +76,9 @@ def wait_for_server(server, port):
             port=port,
         )
     )
+
+    if tasks.environment.dry_run:
+        return True
 
     attempts = 0
     server_ok = False
@@ -101,7 +113,7 @@ def wait_for_test_servers():
                 "red",
                 "Could not contact {} test server".format(service)
             )
-            print(msg)
+            print msg
             sys.exit(1)
 
 
@@ -112,7 +124,7 @@ def is_mongo_running():
     # The mongo command will connect to the service,
     # failing with a non-zero exit code if it cannot connect.
     output = os.popen('mongo --eval "print(\'running\')"').read()
-    return (output and "running" in output)
+    return output and "running" in output
 
 
 def is_memcache_running():
@@ -130,12 +142,14 @@ def is_mysql_running():
     """
     # We need to check whether or not mysql is running as a process
     # even if it is not daemonized.
-    with open(os.devnull, 'w') as DEVNULL:
+    with open(os.devnull, 'w') as os_devnull:
         #pgrep returns the PID, which we send to /dev/null
-        returncode = subprocess.call("pgrep mysqld", stdout=DEVNULL, shell=True)
+        returncode = subprocess.call("pgrep mysqld", stdout=os_devnull, shell=True)
     return returncode == 0
 
 
+@task
+@timed
 def clear_mongo():
     """
     Clears mongo database.
@@ -147,40 +161,47 @@ def clear_mongo():
     )
 
 
+@task
+@timed
 def check_mongo():
     """
     Check that mongo is running
     """
     if not is_mongo_running():
         msg = colorize('red', "Mongo is not running locally.")
-        print(msg)
+        print msg
         sys.exit(1)
 
 
+@task
+@timed
 def check_memcache():
     """
     Check that memcache is running
     """
     if not is_memcache_running():
         msg = colorize('red', "Memcache is not running locally.")
-        print(msg)
+        print msg
         sys.exit(1)
 
 
+@task
+@timed
 def check_mysql():
     """
     Check that mysql is running
     """
     if not is_mysql_running():
         msg = colorize('red', "MySQL is not running locally.")
-        print(msg)
+        print msg
         sys.exit(1)
 
 
+@task
+@needs('check_mongo', 'check_memcache', 'check_mysql')
+@timed
 def check_services():
     """
     Check that all required services are running
     """
-    check_mongo()
-    check_memcache()
-    check_mysql()
+    pass

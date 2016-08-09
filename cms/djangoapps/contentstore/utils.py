@@ -3,8 +3,6 @@ Common utility functions useful throughout the contentstore
 """
 
 import logging
-from opaque_keys import InvalidKeyError
-import re
 from datetime import datetime
 from pytz import UTC
 
@@ -14,7 +12,8 @@ from django.utils.translation import ugettext as _
 from django_comment_common.models import assign_default_role
 from django_comment_common.utils import seed_permissions_roles
 
-from xmodule.contentstore.content import StaticContent
+from openedx.core.djangoapps.self_paced.models import SelfPacedConfiguration
+
 from xmodule.modulestore import ModuleStoreEnum
 from xmodule.modulestore.django import modulestore
 from xmodule.modulestore.exceptions import ItemNotFoundError
@@ -104,42 +103,6 @@ def get_lms_link_for_item(location, preview=False):
     )
 
 
-def get_lms_link_for_about_page(course_key):
-    """
-    Returns the url to the course about page from the location tuple.
-    """
-
-    assert isinstance(course_key, CourseKey)
-
-    if settings.FEATURES.get('ENABLE_MKTG_SITE', False):
-        if not hasattr(settings, 'MKTG_URLS'):
-            log.exception("ENABLE_MKTG_SITE is True, but MKTG_URLS is not defined.")
-            return None
-
-        marketing_urls = settings.MKTG_URLS
-
-        # Root will be "https://www.edx.org". The complete URL will still not be exactly correct,
-        # but redirects exist from www.edx.org to get to the Drupal course about page URL.
-        about_base = marketing_urls.get('ROOT', None)
-
-        if about_base is None:
-            log.exception('There is no ROOT defined in MKTG_URLS')
-            return None
-
-        # Strip off https:// (or http://) to be consistent with the formatting of LMS_BASE.
-        about_base = re.sub(r"^https?://", "", about_base)
-
-    elif settings.LMS_BASE is not None:
-        about_base = settings.LMS_BASE
-    else:
-        return None
-
-    return u"//{about_base_url}/courses/{course_key}/about".format(
-        about_base_url=about_base,
-        course_key=course_key.to_deprecated_string()
-    )
-
-
 # pylint: disable=invalid-name
 def get_lms_link_for_certificate_web_view(user_id, course_key, mode):
     """
@@ -156,16 +119,6 @@ def get_lms_link_for_certificate_web_view(user_id, course_key, mode):
         course_id=unicode(course_key),
         mode=mode
     )
-
-
-def course_image_url(course):
-    """Returns the image url for the course."""
-    try:
-        loc = StaticContent.compute_location(course.location.course_key, course.course_image)
-    except InvalidKeyError:
-        return ''
-    path = StaticContent.serialize_asset_key_with_slash(loc)
-    return path
 
 
 # pylint: disable=invalid-name
@@ -312,25 +265,6 @@ def reverse_usage_url(handler_name, usage_key, kwargs=None):
     Creates the URL for handlers that use usage_keys as URL parameters.
     """
     return reverse_url(handler_name, 'usage_key_string', usage_key, kwargs)
-
-
-def has_active_web_certificate(course):
-    """
-    Returns True if given course has active web certificate configuration.
-    If given course has no active web certificate configuration returns False.
-    Returns None If `CERTIFICATES_HTML_VIEW` is not enabled of course has not enabled
-    `cert_html_view_enabled` settings.
-    """
-    cert_config = None
-    if settings.FEATURES.get('CERTIFICATES_HTML_VIEW', False) and course.cert_html_view_enabled:
-        cert_config = False
-        certificates = getattr(course, 'certificates', {})
-        configurations = certificates.get('certificates', [])
-        for config in configurations:
-            if config.get('is_active'):
-                cert_config = True
-                break
-    return cert_config
 
 
 def get_user_partition_info(xblock, schemes=None, course=None):
@@ -486,3 +420,10 @@ def get_visibility_partition_info(xblock):
         "has_selected_groups": has_selected_groups,
         "selected_verified_partition_id": selected_verified_partition_id,
     }
+
+
+def is_self_paced(course):
+    """
+    Returns True if course is self-paced, False otherwise.
+    """
+    return course and course.self_paced and SelfPacedConfiguration.current().enabled

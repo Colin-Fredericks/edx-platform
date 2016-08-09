@@ -3,6 +3,78 @@
 from django.http import Http404
 from django.core.paginator import Paginator, InvalidPage
 
+from rest_framework.response import Response
+from rest_framework import pagination
+
+
+class DefaultPagination(pagination.PageNumberPagination):
+    """
+    Default paginator for APIs in edx-platform.
+
+    This is configured in settings to be automatically used
+    by any subclass of Django Rest Framework's generic API views.
+    """
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+    def get_paginated_response(self, data):
+        """
+        Annotate the response with pagination information.
+        """
+        return Response({
+            'next': self.get_next_link(),
+            'previous': self.get_previous_link(),
+            'count': self.page.paginator.count,
+            'num_pages': self.page.paginator.num_pages,
+            'current_page': self.page.number,
+            'start': (self.page.number - 1) * self.get_page_size(self.request),
+            'results': data
+        })
+
+
+class NamespacedPageNumberPagination(pagination.PageNumberPagination):
+    """
+    Pagination scheme that returns results with pagination metadata
+    embedded in a "pagination" attribute.  Can be used with data
+    that comes as a list of items, or as a dict with a "results"
+    attribute that contains a list of items.
+    """
+
+    page_size_query_param = "page_size"
+
+    def get_result_count(self):
+        """
+        Returns total number of results
+        """
+        return self.page.paginator.count
+
+    def get_num_pages(self):
+        """
+        Returns total number of pages the results are divided into
+        """
+        return self.page.paginator.num_pages
+
+    def get_paginated_response(self, data):
+        """
+        Annotate the response with pagination information
+        """
+        metadata = {
+            'next': self.get_next_link(),
+            'previous': self.get_previous_link(),
+            'count': self.get_result_count(),
+            'num_pages': self.get_num_pages(),
+        }
+        if isinstance(data, dict):
+            if 'results' not in data:
+                raise TypeError(u'Malformed result dict')
+            data['pagination'] = metadata
+        else:
+            data = {
+                'results': data,
+                'pagination': metadata,
+            }
+        return Response(data)
+
 
 def paginate_search_results(object_class, search_results, page_size, page):
     """

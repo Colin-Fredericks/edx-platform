@@ -14,7 +14,7 @@ from xmodule.modulestore.tests.django_utils import (
 from student.tests.factories import UserFactory
 from xmodule.modulestore.tests.factories import CourseFactory, ItemFactory
 
-from ..models import CustomCourseForEdX
+from lms.djangoapps.ccx.models import CustomCourseForEdX
 
 
 class TestCCXModulestoreWrapper(SharedModuleStoreTestCase):
@@ -25,16 +25,12 @@ class TestCCXModulestoreWrapper(SharedModuleStoreTestCase):
     @classmethod
     def setUpClass(cls):
         super(TestCCXModulestoreWrapper, cls).setUpClass()
-        cls.course = course = CourseFactory.create()
-        cls.mooc_start = start = datetime.datetime(
-            2010, 5, 12, 2, 42, tzinfo=pytz.UTC
-        )
-        cls.mooc_due = due = datetime.datetime(
-            2010, 7, 7, 0, 0, tzinfo=pytz.UTC
-        )
+        cls.course = CourseFactory.create()
+        start = datetime.datetime(2010, 5, 12, 2, 42, tzinfo=pytz.UTC)
+        due = datetime.datetime(2010, 7, 7, 0, 0, tzinfo=pytz.UTC)
         # Create a course outline
         cls.chapters = chapters = [
-            ItemFactory.create(start=start, parent=course) for _ in xrange(2)
+            ItemFactory.create(start=start, parent=cls.course) for _ in xrange(2)
         ]
         cls.sequentials = sequentials = [
             ItemFactory.create(parent=c) for _ in xrange(2) for c in chapters
@@ -45,27 +41,31 @@ class TestCCXModulestoreWrapper(SharedModuleStoreTestCase):
             ) for _ in xrange(2) for s in sequentials
         ]
         cls.blocks = [
-            ItemFactory.create(parent=v) for _ in xrange(2) for v in verticals
+            ItemFactory.create(parent=v, category='html') for _ in xrange(2) for v in verticals
         ]
+
+    @classmethod
+    def setUpTestData(cls):
+        """
+        Set up models for the whole TestCase.
+        """
+        cls.user = UserFactory.create()
+        # Create instructor account
+        cls.coach = AdminFactory.create()
 
     def setUp(self):
         """
         Set up tests
         """
         super(TestCCXModulestoreWrapper, self).setUp()
-        self.user = UserFactory.create()
-
-        # Create instructor account
-        coach = AdminFactory.create()
-
         self.ccx = ccx = CustomCourseForEdX(
             course_id=self.course.id,
             display_name='Test CCX',
-            coach=coach
+            coach=self.coach
         )
         ccx.save()
 
-        self.ccx_locator = CCXLocator.from_course_locator(self.course.id, ccx.id)  # pylint: disable=no-member
+        self.ccx_locator = CCXLocator.from_course_locator(self.course.id, ccx.id)
 
     def get_all_children_bf(self, block):
         """traverse the children of block in a breadth-first order"""
@@ -132,12 +132,13 @@ class TestCCXModulestoreWrapper(SharedModuleStoreTestCase):
 
     def test_publication_api(self):
         """verify that we can correctly discern a published item by ccx key"""
-        for expected in self.blocks:
-            block_key = self.ccx_locator.make_usage_key(
-                expected.location.block_type, expected.location.block_id
-            )
-            self.assertTrue(self.store.has_published_version(expected))
-            self.store.unpublish(block_key, self.user.id)
-            self.assertFalse(self.store.has_published_version(expected))
-            self.store.publish(block_key, self.user.id)
-            self.assertTrue(self.store.has_published_version(expected))
+        with self.store.bulk_operations(self.ccx_locator):
+            for expected in self.blocks:
+                block_key = self.ccx_locator.make_usage_key(
+                    expected.location.block_type, expected.location.block_id
+                )
+                self.assertTrue(self.store.has_published_version(expected))
+                self.store.unpublish(block_key, self.user.id)
+                self.assertFalse(self.store.has_published_version(expected))
+                self.store.publish(block_key, self.user.id)
+                self.assertTrue(self.store.has_published_version(expected))

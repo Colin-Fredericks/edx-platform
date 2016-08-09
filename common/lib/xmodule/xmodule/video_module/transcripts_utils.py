@@ -383,7 +383,8 @@ def manage_video_subtitles_save(item, user, old_metadata=None, generate_translat
                     lang,
                 )
             except TranscriptException as ex:
-                item.transcripts.pop(lang)  # remove key from transcripts because proper srt file does not exist in assets.
+                # remove key from transcripts because proper srt file does not exist in assets.
+                item.transcripts.pop(lang)
                 reraised_message += ' ' + ex.message
         if reraised_message:
             item.save_with_metadata(user)
@@ -568,14 +569,15 @@ class VideoTranscriptsMixin(object):
                 Defaults to False
         """
         translations = []
-        sub, other_lang = transcripts["sub"], transcripts["transcripts"]
+        sub, other_langs = transcripts["sub"], transcripts["transcripts"]
 
         # If we're not verifying the assets, we just trust our field values
         if not verify_assets:
-            translations = list(other_lang)
+            if other_langs:
+                translations = list(other_langs)
             if not translations or sub:
                 translations += ['en']
-            return set(translations)
+            return translations
 
         # If we've gotten this far, we're going to verify that the transcripts
         # being referenced are actually in the contentstore.
@@ -588,16 +590,16 @@ class VideoTranscriptsMixin(object):
                 except NotFoundError:
                     pass
                 else:
-                    translations = ['en']
+                    translations += ['en']
             else:
-                translations = ['en']
+                translations += ['en']
 
-        for lang in other_lang:
+        for lang in other_langs:
             try:
-                Transcript.asset(self.location, None, None, other_lang[lang])
+                Transcript.asset(self.location, None, None, other_langs[lang])
             except NotFoundError:
                 continue
-            translations.append(lang)
+            translations += [lang]
 
         return translations
 

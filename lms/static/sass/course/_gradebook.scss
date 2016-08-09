@@ -1,6 +1,15 @@
 $cell-border-color: #e1e1e1;
 $table-border-color: #c8c8c8;
 
+.no-select {
+	-webkit-touch-callout: none;
+	-webkit-user-select: none;
+	-khtml-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+}
+
 div.gradebook-wrapper {
 
   section.gradebook-content {
@@ -71,11 +80,22 @@ div.gradebook-wrapper {
 		}
 	}
 
+	.grade-book-footer {
+	    position: relative;
+	    top: 15px;
+		width: 100%;
+		border: 0;
+		box-shadow: 0;
+		text-align: center;
+	    display: inline-block;
+	}
+
 	.grades {
 		position: relative;
 		float: left;
 		width: 76%;
-		overflow: hidden;
+		overflow-x: auto;
+		overflow-y: hidden;
 
 		.left-shadow,
 		.right-shadow {

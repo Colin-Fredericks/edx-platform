@@ -29,6 +29,8 @@ class IntegrationTestLTI(testutil.TestCase):
 
     def setUp(self):
         super(IntegrationTestLTI, self).setUp()
+        self.client.defaults['SERVER_NAME'] = 'testserver'
+        self.url_prefix = 'http://testserver'
         self.configure_lti_provider(
             name='Other Tool Consumer 1', enabled=True,
             lti_consumer_key='other1',
@@ -119,7 +121,7 @@ class IntegrationTestLTI(testutil.TestCase):
     def test_reject_bad_login(self):
         login_response = self.client.post(
             path=LTI_TPA_LOGIN_URL, content_type=FORM_ENCODED,
-            data="invalid=login"
+            data="invalid=login",
         )
         # The user should be redirected to the login page with an error message
         # (auth_entry defaults to login for this provider)

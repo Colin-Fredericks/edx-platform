@@ -1,15 +1,14 @@
 # Factories are self documenting
 # pylint: disable=missing-docstring
-import factory
-from django.core.files.base import ContentFile
-from factory.django import DjangoModelFactory, ImageField
+from uuid import uuid4
 
-from student.models import LinkedInAddToProfileConfiguration
+from factory.django import DjangoModelFactory
 
 from certificates.models import (
-    GeneratedCertificate, CertificateStatuses, CertificateHtmlViewConfiguration, CertificateWhitelist, BadgeAssertion,
-    BadgeImageConfiguration,
+    GeneratedCertificate, CertificateStatuses, CertificateHtmlViewConfiguration, CertificateWhitelist,
+    CertificateInvalidation,
 )
+from student.models import LinkedInAddToProfileConfiguration
 
 
 class GeneratedCertificateFactory(DjangoModelFactory):
@@ -21,6 +20,7 @@ class GeneratedCertificateFactory(DjangoModelFactory):
     status = CertificateStatuses.unavailable
     mode = GeneratedCertificate.MODES.honor
     name = ''
+    verify_uuid = uuid4().hex
 
 
 class CertificateWhitelistFactory(DjangoModelFactory):
@@ -30,28 +30,16 @@ class CertificateWhitelistFactory(DjangoModelFactory):
 
     course_id = None
     whitelist = True
+    notes = 'Test Notes'
 
 
-class BadgeAssertionFactory(DjangoModelFactory):
-    class Meta(object):
-        model = BadgeAssertion
-
-    mode = 'honor'
-
-
-class BadgeImageConfigurationFactory(DjangoModelFactory):
+class CertificateInvalidationFactory(DjangoModelFactory):
 
     class Meta(object):
-        model = BadgeImageConfiguration
+        model = CertificateInvalidation
 
-    mode = 'honor'
-    icon = factory.LazyAttribute(
-        lambda _: ContentFile(
-            ImageField()._make_data(  # pylint: disable=protected-access
-                {'color': 'blue', 'width': 50, 'height': 50, 'format': 'PNG'}
-            ), 'test.png'
-        )
-    )
+    notes = 'Test Notes'
+    active = True
 
 
 class CertificateHtmlViewConfigurationFactory(DjangoModelFactory):
@@ -74,15 +62,23 @@ class CertificateHtmlViewConfigurationFactory(DjangoModelFactory):
             },
             "honor": {
                 "certificate_type": "Honor Code",
-                "document_body_class_append": "is-honorcode"
+                "certificate_title": "Certificate of Achievement",
+                "logo_url": "http://www.edx.org/honor_logo.png"
             },
             "verified": {
                 "certificate_type": "Verified",
-                "document_body_class_append": "is-idverified"
+                "certificate_title": "Verified Certificate of Achievement"
             },
             "xseries": {
-                "certificate_type": "XSeries",
-                "document_body_class_append": "is-xseries"
+                "certificate_title": "XSeries Certificate of Achievement",
+                "certificate_type": "XSeries"
+            },
+            "microsites": {
+                "test-site": {
+                    "company_about_url": "http://www.test-site.org/about-us",
+                    "company_privacy_url": "http://www.test-site.org/edx-privacy-policy",
+                    "company_tos_url": "http://www.test-site.org/edx-terms-service"
+                }
             }
         }"""
 

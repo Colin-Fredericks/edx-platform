@@ -43,7 +43,7 @@ What is supported:
        (http://www.imsglobal.org/lti/ltiv2p0/uml/purl.imsglobal.org/vocab/lis/v2/outcomes/Result/service.html)
         a.) Discovery of all such LTI http endpoints for a course.  External tools GET from this discovery
             endpoint and receive URLs for interacting with individual grading units.
-            (see lms/djangoapps/courseware/views.py:get_course_lti_endpoints)
+            (see lms/djangoapps/courseware/views/views.py:get_course_lti_endpoints)
         b.) GET, PUT and DELETE in LTI Result JSON binding
             (http://www.imsglobal.org/lti/ltiv2p0/mediatype/application/vnd/ims/lis/v2/result+json/index.html)
             for a provider to synchronize grades into edx-platform.  Reading, Setting, and Deleteing
@@ -76,13 +76,14 @@ from xblock.fields import Boolean, Float
 
 log = logging.getLogger(__name__)
 
-# Make '_' a no-op so we can scrape strings
-_ = lambda text: text
-
 DOCS_ANCHOR_TAG_OPEN = (
     "<a target='_blank' "
-    "href='http://edx.readthedocs.org/projects/ca/en/latest/exercises_tools/lti_component.html'>"
+    "href='http://edx.readthedocs.io/projects/edx-partner-course-staff/en/latest/exercises_tools/lti_component.html'>"
 )
+
+# Make '_' a no-op so we can scrape strings. Using lambda instead of
+#  `django.utils.translation.ugettext_noop` because Django cannot be imported in this file
+_ = lambda text: text
 
 
 class LTIFields(object):
@@ -206,18 +207,14 @@ class LTIFields(object):
     ask_to_send_username = Boolean(
         display_name=_("Request user's username"),
         # Translators: This is used to request the user's username for a third party service.
-        help=_(
-            "Select True to request the user's username."
-        ),
+        help=_("Select True to request the user's username."),
         default=False,
         scope=Scope.settings
     )
     ask_to_send_email = Boolean(
         display_name=_("Request user's email"),
         # Translators: This is used to request the user's email for a third party service.
-        help=_(
-            "Select True to request the user's email address."
-        ),
+        help=_("Select True to request the user's email address."),
         default=False,
         scope=Scope.settings
     )
@@ -902,6 +899,7 @@ class LTIDescriptor(LTIFields, MetadataOnlyEditingDescriptor, EmptyDataRawDescri
     Descriptor for LTI Xmodule.
     """
     module_class = LTIModule
+    resources_dir = None
     grade_handler = module_attr('grade_handler')
     preview_handler = module_attr('preview_handler')
     lti_2_0_result_rest_handler = module_attr('lti_2_0_result_rest_handler')

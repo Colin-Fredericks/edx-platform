@@ -6,25 +6,25 @@ Credit courses allow students to receive university credit for
 successful completion of a course on EdX
 """
 
-import datetime
 from collections import defaultdict
+import datetime
 import logging
 
-import pytz
-
+from config_models.models import ConfigurationModel
 from django.conf import settings
 from django.core.cache import cache
-from django.dispatch import receiver
-from django.db import models, transaction, IntegrityError
 from django.core.validators import RegexValidator
-from simple_history.models import HistoricalRecords
-
+from django.db import models, transaction, IntegrityError
+from django.dispatch import receiver
+from django.utils.translation import ugettext_lazy, ugettext as _
 from jsonfield.fields import JSONField
 from model_utils.models import TimeStampedModel
+import pytz
+from simple_history.models import HistoricalRecords
 from xmodule_django.models import CourseKeyField
-from django.utils.translation import ugettext_lazy
 
 
+CREDIT_PROVIDER_ID_REGEX = r"[a-z,A-Z,0-9,\-]+"
 log = logging.getLogger(__name__)
 
 
@@ -42,7 +42,7 @@ class CreditProvider(TimeStampedModel):
         unique=True,
         validators=[
             RegexValidator(
-                regex=r"^[a-z,A-Z,0-9,\-]+$",
+                regex=CREDIT_PROVIDER_ID_REGEX,
                 message="Only alphanumeric characters and hyphens (-) are allowed",
                 code="invalid_provider_id",
             )
@@ -291,11 +291,11 @@ class CreditRequirement(TimeStampedModel):
     active = models.BooleanField(default=True)
 
     class Meta(object):
-        """
-        Model metadata.
-        """
         unique_together = ('namespace', 'name', 'course')
         ordering = ["order"]
+
+    def __unicode__(self):
+        return '{course_id} - {name}'.format(course_id=self.course.course_key, name=self.display_name)
 
     @classmethod
     def add_or_update_course_requirement(cls, credit_course, requirement, order):
@@ -411,6 +411,7 @@ class CreditRequirementStatus(TimeStampedModel):
     REQUIREMENT_STATUS_CHOICES = (
         ("satisfied", "satisfied"),
         ("failed", "failed"),
+        ("declined", "declined"),
     )
 
     username = models.CharField(max_length=255, db_index=True)
@@ -427,8 +428,9 @@ class CreditRequirementStatus(TimeStampedModel):
     # Maintain a history of requirement status updates for auditing purposes
     history = HistoricalRecords()
 
-    class Meta(object):  # pylint: disable=missing-docstring
+    class Meta(object):
         unique_together = ('username', 'requirement')
+        verbose_name_plural = _('Credit requirement statuses')
 
     @classmethod
     def get_statuses(cls, requirements, username):
@@ -445,7 +447,7 @@ class CreditRequirementStatus(TimeStampedModel):
         return cls.objects.filter(requirement__in=requirements, username=username)
 
     @classmethod
-    @transaction.commit_on_success
+    @transaction.atomic
     def add_or_update_requirement_status(cls, username, requirement, status="satisfied", reason=None):
         """
         Add credit requirement status for given username.
@@ -468,7 +470,7 @@ class CreditRequirementStatus(TimeStampedModel):
             requirement_status.save()
 
     @classmethod
-    @transaction.commit_on_success
+    @transaction.atomic
     def remove_requirement_status(cls, username, requirement):
         """
         Remove credit requirement status for given username.
@@ -492,11 +494,15 @@ class CreditRequirementStatus(TimeStampedModel):
             return
 
 
+def default_deadline_for_credit_eligibility():  # pylint: disable=invalid-name
+    """ The default deadline to use when creating a new CreditEligibility model. """
+    return datetime.datetime.now(pytz.UTC) + datetime.timedelta(
+        days=getattr(settings, "CREDIT_ELIGIBILITY_EXPIRATION_DAYS", 365)
+    )
+
+
 class CreditEligibility(TimeStampedModel):
-    """
-    A record of a user's eligibility for credit from a specific credit
-    provider for a specific course.
-    """
+    """ A record of a user's eligibility for credit for a specific course. """
     username = models.CharField(max_length=255, db_index=True)
     course = models.ForeignKey(CreditCourse, related_name="eligibilities")
 
@@ -506,15 +512,11 @@ class CreditEligibility(TimeStampedModel):
     # We save the deadline as a database field just in case
     # we need to override the deadline for particular students.
     deadline = models.DateTimeField(
-        default=lambda: (
-            datetime.datetime.now(pytz.UTC) + datetime.timedelta(
-                days=getattr(settings, "CREDIT_ELIGIBILITY_EXPIRATION_DAYS", 365)
-            )
-        ),
+        default=default_deadline_for_credit_eligibility,
         help_text=ugettext_lazy("Deadline for purchasing and requesting credit.")
     )
 
-    class Meta(object):  # pylint: disable=missing-docstring
+    class Meta(object):
         unique_together = ('username', 'course')
         verbose_name_plural = "Credit eligibilities"
 
@@ -636,7 +638,7 @@ class CreditRequest(TimeStampedModel):
 
     history = HistoricalRecords()
 
-    class Meta(object):  # pylint: disable=missing-docstring
+    class Meta(object):
         # Enforce the constraint that each user can have exactly one outstanding
         # request to a given provider.  Multiple requests use the same UUID.
         unique_together = ('username', 'course', 'provider')
@@ -707,6 +709,28 @@ class CreditRequest(TimeStampedModel):
         """Unicode representation of a credit request."""
         return u"{course}, {provider}, {status}".format(
             course=self.course.course_key,
-            provider=self.provider.provider_id,  # pylint: disable=no-member
+            provider=self.provider.provider_id,
             status=self.status,
         )
+
+
+class CreditConfig(ConfigurationModel):
+    """ Manage credit configuration """
+    CACHE_KEY = 'credit.providers.api.data'
+
+    cache_ttl = models.PositiveIntegerField(
+        verbose_name=_("Cache Time To Live"),
+        default=0,
+        help_text=_(
+            "Specified in seconds. Enable caching by setting this to a value greater than 0."
+        )
+    )
+
+    @property
+    def is_cache_enabled(self):
+        """Whether responses from the commerce API will be cached."""
+        return self.enabled and self.cache_ttl > 0
+
+    def __unicode__(self):
+        """Unicode representation of the config. """
+        return 'Credit Configuration'

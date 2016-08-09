@@ -14,7 +14,7 @@ from courseware.tests.factories import StudentModuleFactory
 USER_COUNT = 11
 
 
-@attr('shard_1')
+@attr(shard=1)
 class TestGradebook(SharedModuleStoreTestCase):
     """
     Test functionality of the spoc gradebook. Sets up a course with assignments and
@@ -82,7 +82,7 @@ class TestGradebook(SharedModuleStoreTestCase):
         self.assertEquals(self.response.status_code, 200)
 
 
-@attr('shard_1')
+@attr(shard=1)
 class TestDefaultGradingPolicy(TestGradebook):
     """
     Tests that the grading policy is properly applied for all users in the course
@@ -108,7 +108,7 @@ class TestDefaultGradingPolicy(TestGradebook):
         self.assertEquals(293, self.response.content.count('grade_None'))
 
 
-@attr('shard_1')
+@attr(shard=1)
 class TestLetterCutoffPolicy(TestGradebook):
     """
     Tests advanced grading policy (with letter grade cutoffs). Includes tests of
@@ -140,7 +140,6 @@ class TestLetterCutoffPolicy(TestGradebook):
         self.assertIn("grade_D {color:DarkSlateGray;}", self.response.content)
 
     def test_assigned_grades(self):
-        print self.response.content
         # Users 9-10 have >= 90% on Homeworks [2]
         # Users 9-10 have >= 90% on the class [2]
         # One use at the top of the page [1]

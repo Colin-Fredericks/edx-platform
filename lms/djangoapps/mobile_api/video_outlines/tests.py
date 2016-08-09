@@ -2,22 +2,25 @@
 """
 Tests for video outline API
 """
-import ddt
+
 import itertools
 from uuid import uuid4
 from collections import namedtuple
 
+import ddt
+from nose.plugins.attrib import attr
 from edxval import api
-from mobile_api.models import MobileApiConfig
 from xmodule.modulestore.tests.factories import ItemFactory
 from xmodule.video_module import transcripts_utils
 from xmodule.modulestore.django import modulestore
 from xmodule.partitions.partitions import Group, UserPartition
+from milestones.tests.utils import MilestonesTestCaseMixin
 
+from mobile_api.models import MobileApiConfig
 from openedx.core.djangoapps.course_groups.tests.helpers import CohortFactory
 from openedx.core.djangoapps.course_groups.models import CourseUserGroupPartitionGroup
-
-from ..testutils import MobileAPITestCase, MobileAuthTestMixin, MobileCourseAccessTestMixin
+from openedx.core.djangoapps.course_groups.cohorts import add_user_to_cohort, remove_user_from_cohort
+from mobile_api.testutils import MobileAPITestCase, MobileAuthTestMixin, MobileCourseAccessTestMixin
 
 
 class TestVideoAPITestCase(MobileAPITestCase):
@@ -195,7 +198,8 @@ class TestVideoAPIMixin(object):
         return sub_block_a, sub_block_b
 
 
-class TestNonStandardCourseStructure(MobileAPITestCase, TestVideoAPIMixin):
+@attr(shard=2)
+class TestNonStandardCourseStructure(MobileAPITestCase, TestVideoAPIMixin, MilestonesTestCaseMixin):
     """
     Tests /api/mobile/v0.5/video_outlines/courses/{course_id} with no course set
     """
@@ -404,10 +408,10 @@ class TestNonStandardCourseStructure(MobileAPITestCase, TestVideoAPIMixin):
         )
 
 
+@attr(shard=2)
 @ddt.ddt
-class TestVideoSummaryList(
-    TestVideoAPITestCase, MobileAuthTestMixin, MobileCourseAccessTestMixin, TestVideoAPIMixin  # pylint: disable=bad-continuation
-):
+class TestVideoSummaryList(TestVideoAPITestCase, MobileAuthTestMixin, MobileCourseAccessTestMixin,
+                           TestVideoAPIMixin, MilestonesTestCaseMixin):
     """
     Tests for /api/mobile/v0.5/video_outlines/courses/{course_id}..
     """
@@ -585,12 +589,12 @@ class TestVideoSummaryList(
         course_outline = self.api_response().data
         self.assertEqual(len(course_outline), 3)
         vid = course_outline[0]
-        self.assertTrue('test_subsection_omega_%CE%A9' in vid['section_url'])
-        self.assertTrue('test_subsection_omega_%CE%A9/1' in vid['unit_url'])
-        self.assertTrue(u'test_video_omega_\u03a9' in vid['summary']['id'])
+        self.assertIn('test_subsection_omega_%CE%A9', vid['section_url'])
+        self.assertIn('test_subsection_omega_%CE%A9/1', vid['unit_url'])
+        self.assertIn(u'test_video_omega_\u03a9', vid['summary']['id'])
         self.assertEqual(vid['summary']['video_url'], self.video_url)
         self.assertEqual(vid['summary']['size'], 12345)
-        self.assertTrue('en' in vid['summary']['transcripts'])
+        self.assertIn('en', vid['summary']['transcripts'])
         self.assertFalse(vid['summary']['only_on_web'])
         self.assertEqual(course_outline[1]['summary']['video_url'], self.html5_video_url)
         self.assertEqual(course_outline[1]['summary']['size'], 0)
@@ -743,7 +747,7 @@ class TestVideoSummaryList(
 
         for cohort_index in range(len(cohorts)):
             # add user to this cohort
-            cohorts[cohort_index].users.add(self.user)
+            add_user_to_cohort(cohorts[cohort_index], self.user.username)
 
             # should only see video for this cohort
             video_outline = self.api_response().data
@@ -754,7 +758,7 @@ class TestVideoSummaryList(
             )
 
             # remove user from this cohort
-            cohorts[cohort_index].users.remove(self.user)
+            remove_user_from_cohort(cohorts[cohort_index], self.user.username)
 
         # un-cohorted user should see no videos
         video_outline = self.api_response().data
@@ -861,9 +865,9 @@ class TestVideoSummaryList(
             )
 
 
-class TestTranscriptsDetail(
-    TestVideoAPITestCase, MobileAuthTestMixin, MobileCourseAccessTestMixin, TestVideoAPIMixin  # pylint: disable=bad-continuation
-):
+@attr(shard=2)
+class TestTranscriptsDetail(TestVideoAPITestCase, MobileAuthTestMixin, MobileCourseAccessTestMixin,
+                            TestVideoAPIMixin, MilestonesTestCaseMixin):
     """
     Tests for /api/mobile/v0.5/video_outlines/transcripts/{course_id}..
     """

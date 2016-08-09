@@ -131,6 +131,9 @@ class PartitionTestCase(TestCase):
             extensions, namespace=USER_PARTITION_SCHEME_NAMESPACE
         )
 
+        # Be sure to clean up the global scheme_extensions after the test.
+        self.addCleanup(self.cleanup_scheme_extensions)
+
         # Create a test partition
         self.user_partition = UserPartition(
             self.TEST_ID,
@@ -144,6 +147,12 @@ class PartitionTestCase(TestCase):
         # Make sure the names are set on the schemes (which happens normally in code, but may not happen in tests).
         self.user_partition.get_scheme(self.non_random_scheme.name)
         self.user_partition.get_scheme(self.random_scheme.name)
+
+    def cleanup_scheme_extensions(self):
+        """
+        Unset the UserPartition.scheme_extensions cache.
+        """
+        UserPartition.scheme_extensions = None
 
 
 class TestUserPartition(PartitionTestCase):
@@ -160,10 +169,10 @@ class TestUserPartition(PartitionTestCase):
         )
         self.assertEqual(user_partition.id, self.TEST_ID)
         self.assertEqual(user_partition.name, self.TEST_NAME)
-        self.assertEqual(user_partition.description, self.TEST_DESCRIPTION)   # pylint: disable=no-member
-        self.assertEqual(user_partition.groups, self.TEST_GROUPS)             # pylint: disable=no-member
-        self.assertEquals(user_partition.scheme.name, self.TEST_SCHEME_NAME)  # pylint: disable=no-member
-        self.assertEquals(user_partition.parameters, self.TEST_PARAMETERS)    # pylint: disable=no-member
+        self.assertEqual(user_partition.description, self.TEST_DESCRIPTION)
+        self.assertEqual(user_partition.groups, self.TEST_GROUPS)
+        self.assertEquals(user_partition.scheme.name, self.TEST_SCHEME_NAME)
+        self.assertEquals(user_partition.parameters, self.TEST_PARAMETERS)
 
     def test_string_id(self):
         user_partition = UserPartition(
@@ -201,12 +210,12 @@ class TestUserPartition(PartitionTestCase):
             "scheme": "mock",
         }
         user_partition = UserPartition.from_json(jsonified)
-        self.assertEqual(user_partition.id, self.TEST_ID)                    # pylint: disable=no-member
-        self.assertEqual(user_partition.name, self.TEST_NAME)                # pylint: disable=no-member
-        self.assertEqual(user_partition.description, self.TEST_DESCRIPTION)  # pylint: disable=no-member
-        self.assertEqual(user_partition.parameters, self.TEST_PARAMETERS)    # pylint: disable=no-member
+        self.assertEqual(user_partition.id, self.TEST_ID)
+        self.assertEqual(user_partition.name, self.TEST_NAME)
+        self.assertEqual(user_partition.description, self.TEST_DESCRIPTION)
+        self.assertEqual(user_partition.parameters, self.TEST_PARAMETERS)
 
-        for act_group in user_partition.groups:  # pylint: disable=no-member
+        for act_group in user_partition.groups:
             self.assertIn(act_group.id, [0, 1])
             exp_group = self.TEST_GROUPS[act_group.id]
             self.assertEqual(exp_group.id, act_group.id)
@@ -223,7 +232,7 @@ class TestUserPartition(PartitionTestCase):
             "version": 1,
         }
         user_partition = UserPartition.from_json(jsonified)
-        self.assertEqual(user_partition.scheme.name, "random")    # pylint: disable=no-member
+        self.assertEqual(user_partition.scheme.name, "random")
         self.assertEqual(user_partition.parameters, {})
         self.assertTrue(user_partition.active)
 

@@ -1,3 +1,7 @@
+// lms - base courseware styling
+// ====================
+// NOTE: this file is deprecated, and we should not continue to add to this file. Use other partials as appropriate.
+
 html {
   height: 100%;
   max-height: 100%;
@@ -26,16 +30,16 @@ html.video-fullscreen {
   .instructor-info-action {
     @extend %t-copy-sub2;
     @include float(right);
-    margin-left: ($baseline/2);
+    @include margin-left($baseline/2);
     padding: ($baseline/4) ($baseline/2);
     border-radius: ($baseline/4);
-    background-color: $shadow-l2;
+    background-color: $light-gray1;
     text-align: right;
     text-transform: uppercase;
-    color: $lighter-base-font-color;
+    color: $staff-color;
 
     &:hover {
-      background-color: $link-hover;
+      background-color: $staff-color;
       color: $white;
     }
   }
@@ -54,12 +58,14 @@ html.video-fullscreen {
 
 .content-wrapper {
 
-  .course-license, .xblock-license {
+  .course-license,
+  .xblock-license {
     @include text-align(right);
     @extend %t-title7;
     display: block;
     width: auto;
     padding: ($baseline/4) 0;
+    color: $gray-d1;
 
     span {
       color: inherit;
@@ -69,7 +75,7 @@ html.video-fullscreen {
       color: $gray;
     }
     a:active, a:hover {
-      color: $link-hover;
+      color: $uxpl-blue-base;
     }
 
     .license-label,
@@ -91,13 +97,25 @@ html.video-fullscreen {
 }
 
 // TO-DO should this be content wrapper?
-div.course-wrapper {
+.course-wrapper {
   position: relative;
 
-  section.course-content {
+  .courseware-results-wrapper {
+    display: none;
+  }
+
+  .course-content,
+  .courseware-results-wrapper {
     @extend .content;
-    padding: ($baseline*2);
+    padding: ($baseline*2) 3%; // percent allows for smaller padding on mobile
     line-height: 1.6;
+
+    .xblock {
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+        word-break: break-word;
+    }
+
     h1 {
       margin: 0 0 lh();
     }
@@ -132,28 +150,31 @@ div.course-wrapper {
         }
       }
       button.gated-sequence {
-        background-color: transparent;
-        border-bottom: none;
+        background: $transparent;
+        color: $uxpl-blue-base;
+        border: none;
         box-shadow: none;
-        text-align: left;
+        @include text-align(left);
+        @extend %t-copy-base;
         width: 100%;
+
         &:hover {
           background-color: transparent;
+          color: $uxpl-blue-hover-active;
         }
       }
-      button.gated-sequence > a {
-        color: #147ABA;
-      }
+
       span.proctored-exam-code {
         margin-top: 5px;
         font-size: 1.3em;
       }
       .gated-sequence {
-        color: #147ABA;
+        color: $uxpl-blue-base;
         font-weight: 600;
+        padding: ($baseline / 1.5) ($baseline / 4);
         a.start-timed-exam {
           cursor: pointer;
-          color: #147ABA;
+          color: $uxpl-blue-base;
           font-weight: 600;
           position: relative;
           top: ($baseline/10);
@@ -165,6 +186,25 @@ div.course-wrapper {
       .proctored-exam-select-code {
         margin-left: 30px;
       }
+
+      .exam-action-button {
+        @extend %t-weight4;
+        margin-right: $baseline;
+        background-image: none;
+        box-shadow: none;
+        text-shadow: none;
+
+        &.btn-pl-primary {
+          @extend %btn-pl-primary-base;
+          border: 0;
+
+          &:hover,
+          &:focus {
+            border: 0;
+          }
+        }
+      }
+
       background-color: #F2F4F5;
       padding: 30px;
       font-size: 16px;
@@ -198,30 +238,28 @@ div.course-wrapper {
         border-left: 4px solid #C93B34 !important;
         margin: 0 auto;
       }
+      &.warning {
+        @include border-left(4px solid $warning-color);
+        margin: 0 auto;
+      }
     }
 
     div.proctored-exam {
       @extend .timed-exam;
+
       .proctored-exam-message {
         border-top: ($baseline/10) solid rgb(207, 216, 220);
         padding-top: 25px;
       }
+
+      .proctored-exam-skip-actions {
+        padding-top: 20px;
+      }
+
       // specialized padding override just for the entrance page
       &.entrance {
         button.gated-sequence {
           padding: 0 ($baseline*5) 0 ($baseline*2.5);
-        }
-      }
-      button {
-        background: #126F9A;
-        color: $white;
-        font-size: 16px;
-        padding: 16px 30px;
-        margin-bottom: 10px;
-        font-weight: 200;
-        border: none;
-        &:hover {
-          background-color: #035E88;
         }
       }
       hr {
@@ -268,7 +306,7 @@ div.course-wrapper {
         }
         &:last-child {
           > .practice-exam {
-            color: #147ABA;
+            color: $uxpl-blue-base;
           }
           border-bottom: none;
         }
@@ -295,115 +333,6 @@ div.course-wrapper {
       .proctored-exam-skip-actions {
         @include float(right);
         margin-top: $baseline;
-      }
-
-      .btn {
-        @extend %t-strong;
-        transition: color $tmg-f3 ease-in-out 0s,border-color
-        $tmg-f3 ease-in-out 0s,background
-        $tmg-f3 ease-in-out 0s,box-shadow
-        $tmg-f3 ease-in-out 0s;;
-
-        // Display: inline, side-by-side
-        display: inline-block;
-        border-style: solid;
-        border-radius: 3px;
-        border-width: 1px;
-
-        // Display: block, one button per line, full width
-        &.block {
-            display: block;
-            width: 100%;
-        }
-
-        // STATE: is disabled
-        &:disabled,
-        &.is-disabled {
-          pointer-events: none;
-          outline: none;
-          cursor: default;
-        }
-      }
-
-      .btn-base {
-        @extend %t-copy-base;
-        padding: $baseline/2 $baseline;
-      }
-      // ----------------------------
-      // #DEFAULT
-      // ----------------------------
-      .btn-default {
-        border-color: rgb(0, 121, 188);
-        background: $white-t1;
-        color: rgb(0, 121, 188);;
-
-        // STATE: hover and focus
-        &:hover,
-        &.is-hovered,
-        &:focus,
-        &.is-focused {
-          background: rgb(0, 121, 188);
-          color: $white;
-          box-shadow: none;
-          text-shadow: none;
-        }
-
-        // STATE: is pressed or active
-        &:active,
-        &.is-pressed,
-        &.is-active {
-          border-color: $m-blue-d5;
-          background: $m-blue-d5;
-          box-shadow: none;
-          text-shadow: none;
-        }
-
-        // STATE: is disabled
-        &:disabled,
-        &.is-disabled {
-          border-color: $m-gray-d1;
-          background: $white-t1;
-          color: $m-gray-d3;
-        }
-      }
-      // ----------------------------
-      // #PRIMARY
-      // ----------------------------
-      .btn-primary {
-        border-color: rgb(0, 121, 188);
-        background: rgb(0, 121, 188);
-        color: $white;
-        box-shadow: none;
-        text-shadow: none;
-
-        // STATE: hover and focus
-        &:hover,
-        &.is-hovered,
-        &:focus,
-        &.is-focused {
-          border-color: $m-blue-d5;
-          background: $m-blue-d5;
-          box-shadow: none;
-          text-shadow: none;
-        }
-
-        // STATE: is pressed or active
-        &:active,
-        &.is-pressed,
-        &.is-active {
-          border-color: rgb(0, 121, 188);
-          background: rgb(0, 121, 188);
-          box-shadow: none;
-          text-shadow: none;
-        }
-
-        // STATE: is disabled
-        &:disabled,
-        &.is-disabled {
-          border-color: $m-gray-d1;
-          background: $white-t1;
-          color: $m-gray-d3;
-        }
       }
     }
     .footer-sequence {
@@ -477,6 +406,13 @@ div.course-wrapper {
       li {
         margin-bottom: lh(0.5);
       }
+    }
+
+    .sequence .path {
+      @extend %t-copy-sub1;
+      margin-top: -($baseline);
+      margin-bottom: $baseline;
+      color: $gray;
     }
 
     div#seq_content {
@@ -726,16 +662,15 @@ section.self-assessment {
   }
 }
 
-section.foldit {
-  table {
-    margin-top: ($baseline/2);
-  }
-  th {
-    text-align: center;
-  }
-  td {
-    padding-left: ($baseline/4);
-    padding-right: ($baseline/4);
 
-  }
+/*
+ * CodeMirror color contrast overrides
+ * (so we don't change the vendor file)
+ */
+
+.CodeMirror {
+    
+    .CodeMirror-linenumber.CodeMirror-gutter-elt {
+        color: $gray-d3 !important;
+    }
 }

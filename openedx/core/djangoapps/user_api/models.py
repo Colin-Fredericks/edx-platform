@@ -1,3 +1,6 @@
+"""
+Django ORM model specifications for the User API application
+"""
 from django.contrib.auth.models import User
 from django.core.validators import RegexValidator
 from django.db import models
@@ -24,11 +27,11 @@ class UserPreference(models.Model):
     key = models.CharField(max_length=255, db_index=True, validators=[RegexValidator(KEY_REGEX)])
     value = models.TextField()
 
-    class Meta(object):  # pylint: disable=missing-docstring
+    class Meta(object):
         unique_together = ("user", "key")
 
     @classmethod
-    def get_value(cls, user, preference_key):
+    def get_value(cls, user, preference_key, default=None):
         """Gets the user preference value for a given key.
 
         Note:
@@ -39,15 +42,16 @@ class UserPreference(models.Model):
         Arguments:
             user (User): The user whose preference should be set.
             preference_key (str): The key for the user preference.
+            default: The object to return if user does not have preference key set
 
         Returns:
-            The user preference value, or None if one is not set.
+            The user preference value, or default if one is not set.
         """
         try:
             user_preference = cls.objects.get(user=user, key=preference_key)
             return user_preference.value
         except cls.DoesNotExist:
-            return None
+            return default
 
 
 @receiver(pre_save, sender=UserPreference)
@@ -93,7 +97,7 @@ class UserCourseTag(models.Model):
     course_id = CourseKeyField(max_length=255, db_index=True)
     value = models.TextField()
 
-    class Meta(object):  # pylint: disable=missing-docstring
+    class Meta(object):
         unique_together = ("user", "course_id", "key")
 
 
@@ -109,5 +113,4 @@ class UserOrgTag(TimeStampedModel):
     value = models.TextField()
 
     class Meta(object):
-        """ Meta class for defining unique constraints. """
         unique_together = ("user", "org", "key")

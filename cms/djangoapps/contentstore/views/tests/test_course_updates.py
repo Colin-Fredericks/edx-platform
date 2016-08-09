@@ -71,7 +71,7 @@ class CourseUpdateTest(CourseTestCase):
         course_update_url = self.create_update_url()
         resp = self.client.get_json(course_update_url)
         payload = json.loads(resp.content)
-        self.assertTrue(len(payload) == 2)
+        self.assertEqual(len(payload), 2)
 
         # try json w/o required fields
         self.assertContains(
@@ -123,7 +123,7 @@ class CourseUpdateTest(CourseTestCase):
         url = self.create_update_url(provided_id=this_id)
         resp = self.client.delete(url)
         payload = json.loads(resp.content)
-        self.assertTrue(len(payload) == before_delete - 1)
+        self.assertEqual(len(payload), before_delete - 1)
 
     def test_course_updates_compatibility(self):
         '''
@@ -149,7 +149,7 @@ class CourseUpdateTest(CourseTestCase):
         resp = self.client.get_json(course_update_url)
         payload = json.loads(resp.content)
         self.assertEqual(payload, [{u'date': update_date, u'content': update_content, u'id': 1}])
-        self.assertTrue(len(payload) == 1)
+        self.assertEqual(len(payload), 1)
 
         # test getting single update item
 
@@ -173,9 +173,8 @@ class CourseUpdateTest(CourseTestCase):
         self.assertHTMLEqual(update_content, json.loads(resp.content)['content'])
         course_updates = modulestore().get_item(location)
         self.assertEqual(course_updates.items, [{u'date': update_date, u'content': update_content, u'id': 1}])
-        # course_updates 'data' field should update accordingly
-        update_data = u"<section><article><h2>{date}</h2>{content}</article></section>".format(date=update_date, content=update_content)
-        self.assertEqual(course_updates.data, update_data)
+        # course_updates 'data' field should not update automatically
+        self.assertEqual(course_updates.data, '')
 
         # test delete course update item (soft delete)
         course_updates = modulestore().get_item(location)
@@ -235,7 +234,7 @@ class CourseUpdateTest(CourseTestCase):
         # now confirm that the bad news and the iframe make up single update
         resp = self.client.get_json(course_update_url)
         payload = json.loads(resp.content)
-        self.assertTrue(len(payload) == 1)
+        self.assertEqual(len(payload), 1)
 
     def post_course_update(self, send_push_notification=False):
         """

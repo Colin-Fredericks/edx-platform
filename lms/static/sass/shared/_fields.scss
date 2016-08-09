@@ -12,7 +12,7 @@
         border-radius: 3px;
 
         span {
-            color: $gray-l1;
+            color: $gray;
         }
 
         &:hover {
@@ -133,6 +133,8 @@
         padding: 0;
         box-shadow: none;
         font-size: inherit;
+        font-weight: inherit;
+        text-shadow: none;
     }
 
 

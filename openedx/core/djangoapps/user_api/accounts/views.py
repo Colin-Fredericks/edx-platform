@@ -5,22 +5,22 @@ For more information, see:
 https://openedx.atlassian.net/wiki/display/TNL/User+API
 """
 from django.db import transaction
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
+from edx_rest_framework_extensions.authentication import JwtAuthentication
 from rest_framework import permissions
+from rest_framework import status
+from rest_framework.response import Response
+from rest_framework.viewsets import ViewSet
 
 from openedx.core.lib.api.authentication import (
     SessionAuthenticationAllowInactiveUser,
     OAuth2AuthenticationAllowInactiveUser,
 )
-from ..errors import UserNotFound, UserNotAuthorized, AccountUpdateError, AccountValidationError
 from openedx.core.lib.api.parsers import MergePatchParser
 from .api import get_account_settings, update_account_settings
-from .serializers import PROFILE_IMAGE_KEY_PREFIX
+from ..errors import UserNotFound, UserNotAuthorized, AccountUpdateError, AccountValidationError
 
 
-class AccountView(APIView):
+class AccountViewSet(ViewSet):
     """
         **Use Cases**
 
@@ -29,6 +29,7 @@ class AccountView(APIView):
 
         **Example Requests**
 
+            GET /api/user/v1/accounts?usernames={username1,username2}[?view=shared]
             GET /api/user/v1/accounts/{username}/[?view=shared]
 
             PATCH /api/user/v1/accounts/{username}/{"key":"value"} "application/merge-patch+json"
@@ -96,6 +97,10 @@ class AccountView(APIView):
               requiring parental consent.
             * username: The username associated with the account.
             * year_of_birth: The year the user was born, as an integer, or null.
+            * account_privacy: The user's setting for sharing her personal
+              profile. Possible values are "all_users" or "private".
+            * accomplishments_shared: Signals whether badges are enabled on the
+              platform and should be fetched.
 
             For all text fields, plain text instead of HTML is supported. The
             data is stored exactly as specified. Clients must HTML escape
@@ -134,25 +139,42 @@ class AccountView(APIView):
             "Bad Request" error is returned. The JSON collection contains
             specific errors.
 
-            If the update is successful, an HTTP 204 "No Content" response is
-            returned with no additional content.
+            If the update is successful, updated user account data is returned.
     """
-    authentication_classes = (OAuth2AuthenticationAllowInactiveUser, SessionAuthenticationAllowInactiveUser)
+    authentication_classes = (
+        OAuth2AuthenticationAllowInactiveUser, SessionAuthenticationAllowInactiveUser, JwtAuthentication
+    )
     permission_classes = (permissions.IsAuthenticated,)
     parser_classes = (MergePatchParser,)
 
-    def get(self, request, username):
+    def list(self, request):
         """
-        GET /api/user/v1/accounts/{username}/
+        GET /api/user/v1/accounts?username={username1,username2}
         """
+        usernames = request.GET.get('username')
         try:
-            account_settings = get_account_settings(request, username, view=request.QUERY_PARAMS.get('view'))
+            if usernames:
+                usernames = usernames.strip(',').split(',')
+            account_settings = get_account_settings(
+                request, usernames, view=request.query_params.get('view'))
         except UserNotFound:
             return Response(status=status.HTTP_403_FORBIDDEN if request.user.is_staff else status.HTTP_404_NOT_FOUND)
 
         return Response(account_settings)
 
-    def patch(self, request, username):
+    def retrieve(self, request, username):
+        """
+        GET /api/user/v1/accounts/{username}/
+        """
+        try:
+            account_settings = get_account_settings(
+                request, [username], view=request.query_params.get('view'))
+        except UserNotFound:
+            return Response(status=status.HTTP_403_FORBIDDEN if request.user.is_staff else status.HTTP_404_NOT_FOUND)
+
+        return Response(account_settings[0])
+
+    def partial_update(self, request, username):
         """
         PATCH /api/user/v1/accounts/{username}/
 
@@ -161,8 +183,9 @@ class AccountView(APIView):
         else an error response with status code 415 will be returned.
         """
         try:
-            with transaction.commit_on_success():
-                update_account_settings(request.user, request.DATA, username=username)
+            with transaction.atomic():
+                update_account_settings(request.user, request.data, username=username)
+                account_settings = get_account_settings(request, [username])[0]
         except UserNotAuthorized:
             return Response(status=status.HTTP_403_FORBIDDEN if request.user.is_staff else status.HTTP_404_NOT_FOUND)
         except UserNotFound:
@@ -178,4 +201,4 @@ class AccountView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(account_settings)

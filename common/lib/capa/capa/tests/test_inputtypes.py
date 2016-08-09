@@ -358,7 +358,6 @@ class CodeInputTest(unittest.TestCase):
         element = etree.fromstring(xml_str)
 
         escapedict = {'"': '&quot;'}
-        esc = lambda s: saxutils.escape(s, escapedict)
 
         state = {'value': 'print "good evening"',
                  'status': 'incomplete',
@@ -545,7 +544,7 @@ class MatlabTest(unittest.TestCase):
         test_capa_system().xqueue['interface'].send_to_queue.assert_called_with(header=ANY, body=ANY)
 
         self.assertTrue(response['success'])
-        self.assertTrue(self.the_input.input_state['queuekey'] is not None)
+        self.assertIsNotNone(self.the_input.input_state['queuekey'])
         self.assertEqual(self.the_input.input_state['queuestate'], 'queued')
 
     def test_plot_data_failure(self):
@@ -555,8 +554,8 @@ class MatlabTest(unittest.TestCase):
         response = self.the_input.handle_ajax("plot", data)
         self.assertFalse(response['success'])
         self.assertEqual(response['message'], error_message)
-        self.assertTrue('queuekey' not in self.the_input.input_state)
-        self.assertTrue('queuestate' not in self.the_input.input_state)
+        self.assertNotIn('queuekey', self.the_input.input_state)
+        self.assertNotIn('queuestate', self.the_input.input_state)
 
     @patch('capa.inputtypes.time.time', return_value=10)
     def test_ungraded_response_success(self, time):
@@ -573,8 +572,8 @@ class MatlabTest(unittest.TestCase):
         queue_msg = json.dumps({'msg': inner_msg})
 
         the_input.ungraded_response(queue_msg, queuekey)
-        self.assertTrue(input_state['queuekey'] is None)
-        self.assertTrue(input_state['queuestate'] is None)
+        self.assertIsNone(input_state['queuekey'])
+        self.assertIsNone(input_state['queuestate'])
         self.assertEqual(input_state['queue_msg'], inner_msg)
 
     @patch('capa.inputtypes.time.time', return_value=10)
@@ -594,7 +593,7 @@ class MatlabTest(unittest.TestCase):
         the_input.ungraded_response(queue_msg, 'abc')
         self.assertEqual(input_state['queuekey'], queuekey)
         self.assertEqual(input_state['queuestate'], 'queued')
-        self.assertFalse('queue_msg' in input_state)
+        self.assertNotIn('queue_msg', input_state)
 
     @patch('capa.inputtypes.time.time', return_value=20)
     def test_matlab_response_timeout_not_exceeded(self, time):
@@ -1076,7 +1075,7 @@ class ChemicalEquationTest(unittest.TestCase):
             )
 
         self.assertIn('error', response)
-        self.assertTrue("Couldn't parse formula" in response['error'])
+        self.assertIn("Couldn't parse formula", response['error'])
 
     @patch('capa.inputtypes.log')
     def test_ajax_other_err(self, mock_log):

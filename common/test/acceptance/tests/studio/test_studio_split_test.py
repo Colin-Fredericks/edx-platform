@@ -10,15 +10,15 @@ from selenium.webdriver.support.ui import Select
 from xmodule.partitions.partitions import Group
 from bok_choy.promise import Promise, EmptyPromise
 
-from ...fixtures.course import XBlockFixtureDesc
-from ...pages.studio.component_editor import ComponentEditorView
-from ...pages.studio.overview import CourseOutlinePage, CourseOutlineUnit
-from ...pages.studio.container import ContainerPage
-from ...pages.studio.settings_group_configurations import GroupConfigurationsPage
-from ...pages.studio.utils import add_advanced_component
-from ...pages.xblock.utils import wait_for_xblock_initialization
-from ...pages.lms.courseware import CoursewarePage
-from ..helpers import create_user_partition_json
+from common.test.acceptance.fixtures.course import XBlockFixtureDesc
+from common.test.acceptance.pages.studio.component_editor import ComponentEditorView
+from common.test.acceptance.pages.studio.overview import CourseOutlinePage, CourseOutlineUnit
+from common.test.acceptance.pages.studio.container import ContainerPage
+from common.test.acceptance.pages.studio.settings_group_configurations import GroupConfigurationsPage
+from common.test.acceptance.pages.studio.utils import add_advanced_component
+from common.test.acceptance.pages.xblock.utils import wait_for_xblock_initialization
+from common.test.acceptance.pages.lms.courseware import CoursewarePage
+from common.test.acceptance.tests.helpers import create_user_partition_json
 
 from base_studio_test import StudioCourseTest
 
@@ -66,7 +66,7 @@ class SplitTestMixin(object):
         Promise(missing_groups_button_not_present, "Add missing groups button should not be showing.").fulfill()
 
 
-@attr('shard_2')
+@attr(shard=2)
 class SplitTest(ContainerBase, SplitTestMixin):
     """
     Tests for creating and editing split test instances in Studio.
@@ -199,7 +199,7 @@ class SplitTest(ContainerBase, SplitTestMixin):
         self.verify_groups(container, ['alpha'], [], verify_missing_groups_not_present=False)
 
 
-@attr('shard_2')
+@attr(shard=2)
 class GroupConfigurationsNoSplitTest(StudioCourseTest):
     """
     Tests how the Group Configuration page should look when the split_test module is not enabled.
@@ -224,7 +224,7 @@ class GroupConfigurationsNoSplitTest(StudioCourseTest):
         self.assertFalse(self.group_configurations_page.experiment_group_sections_present)
 
 
-@attr('shard_2')
+@attr(shard=2)
 class GroupConfigurationsTest(ContainerBase, SplitTestMixin):
     """
     Tests that Group Configurations page works correctly with previously
@@ -333,9 +333,9 @@ class GroupConfigurationsTest(ContainerBase, SplitTestMixin):
             return config, split_test
         return config
 
-    def publish_unit_in_LMS_and_view(self, courseware_page):
+    def publish_unit_in_lms_and_view(self, courseware_page, publish=True):
         """
-        Given course outline page, publish first unit and view it in LMS
+        Given course outline page, publish first unit and view it in LMS when publish is false, it will only view
         """
         self.outline_page.visit()
         self.outline_page.expand_all_subsections()
@@ -343,7 +343,8 @@ class GroupConfigurationsTest(ContainerBase, SplitTestMixin):
         unit = section.subsection_at(0).unit_at(0).go_to()
 
         # I publish and view in LMS and it is rendered correctly
-        unit.publish_action.click()
+        if publish:
+            unit.publish_action.click()
         unit.view_published_version()
         self.assertEqual(len(self.browser.window_handles), 2)
         courseware_page.wait_for_page()
@@ -480,6 +481,36 @@ class GroupConfigurationsTest(ContainerBase, SplitTestMixin):
             description="Second Description of the group configuration.",
             groups=["First Group", "Group C", "Group D"]
         )
+
+    def test_focus_management_in_experiment_group_inputs(self):
+        """
+        Scenario: Ensure that selecting the focus inputs in the groups list
+        sets the .is-focused class on the fieldset
+        Given I have a course with experiment group configurations
+        When I click the name of the first group
+        Then the fieldset wrapping the group names whould get class .is-focused
+        When I click away from the first group
+        Then the fieldset should not have class .is-focused anymore
+        """
+        self.page.visit()
+        self.page.create_experiment_group_configuration()
+        config = self.page.experiment_group_configurations[0]
+        group_a = config.groups[0]
+
+        # Assert the fieldset doesn't have .is-focused class
+        self.assertFalse(self.page.q(css="fieldset.groups-fields.is-focused").visible)
+
+        # Click on the Group A input field
+        self.page.q(css=group_a.prefix).click()
+
+        # Assert the fieldset has .is-focused class applied
+        self.assertTrue(self.page.q(css="fieldset.groups-fields.is-focused").visible)
+
+        # Click away
+        self.page.q(css=".page-header").click()
+
+        # Assert the fieldset doesn't have .is-focused class
+        self.assertFalse(self.page.q(css="fieldset.groups-fields.is-focused").visible)
 
     def test_use_group_configuration(self):
         """
@@ -1033,11 +1064,11 @@ class GroupConfigurationsTest(ContainerBase, SplitTestMixin):
             config.edit_warning_message_text
         )
 
-    def publish_unit_and_verify_groups_in_LMS(self, courseware_page, group_names):
+    def publish_unit_and_verify_groups_in_lms(self, courseware_page, group_names, publish=True):
         """
         Publish first unit in LMS and verify that Courseware page has given Groups
         """
-        self.publish_unit_in_LMS_and_view(courseware_page)
+        self.publish_unit_in_lms_and_view(courseware_page, publish)
         self.assertEqual(u'split_test', courseware_page.xblock_component_type())
         self.assertTrue(courseware_page.q(css=".split-test-select").is_present())
         rendered_group_names = self.get_select_options(page=courseware_page, selector=".split-test-select")
@@ -1064,7 +1095,7 @@ class GroupConfigurationsTest(ContainerBase, SplitTestMixin):
 
         # render in LMS correctly
         courseware_page = CoursewarePage(self.browser, self.course_id)
-        self.publish_unit_and_verify_groups_in_LMS(courseware_page, [u'Group A', u'Group B', u'Group C'])
+        self.publish_unit_and_verify_groups_in_lms(courseware_page, [u'Group A', u'Group B', u'Group C'])
 
         # I go to group configuration and delete group
         self.page.visit()
@@ -1078,7 +1109,11 @@ class GroupConfigurationsTest(ContainerBase, SplitTestMixin):
         self.browser.switch_to_window(self.browser.window_handles[0])
 
         # render in LMS to see how inactive vertical is rendered
-        self.publish_unit_and_verify_groups_in_LMS(courseware_page, [u'Group A', u'Group B', u'Group ID 2 (inactive)'])
+        self.publish_unit_and_verify_groups_in_lms(
+            courseware_page,
+            [u'Group A', u'Group B', u'Group ID 2 (inactive)'],
+            publish=False
+        )
 
         self.browser.close()
         self.browser.switch_to_window(self.browser.window_handles[0])
@@ -1088,4 +1123,4 @@ class GroupConfigurationsTest(ContainerBase, SplitTestMixin):
         container.delete(0)
 
         # render in LMS again
-        self.publish_unit_and_verify_groups_in_LMS(courseware_page, [u'Group A', u'Group B'])
+        self.publish_unit_and_verify_groups_in_lms(courseware_page, [u'Group A', u'Group B'])

@@ -84,7 +84,7 @@ class ReportTypeTests(ModuleStoreTestCase):
 
         self.cart = Order.get_cart_for_user(self.second_refund_user)
         CertificateItem.add_to_order(self.cart, self.course_key, self.cost, 'verified')
-        self.cart.purchase(self.second_refund_user, self.course_key)
+        self.cart.purchase(self.second_refund_user.username, self.course_key)
         CourseEnrollment.unenroll(self.second_refund_user, self.course_key)
 
         self.test_time = datetime.datetime.now(pytz.UTC)
@@ -101,8 +101,8 @@ class ReportTypeTests(ModuleStoreTestCase):
 
         self.CORRECT_REFUND_REPORT_CSV = dedent("""
             Order Number,Customer Name,Date of Original Transaction,Date of Refund,Amount of Refund,Service Fees (if any)
-            3,King Bowsér,{time_str},{time_str},40,0
-            4,Súsan Smith,{time_str},{time_str},40,0
+            3,King Bowsér,{time_str},{time_str},40.00,0.00
+            4,Súsan Smith,{time_str},{time_str},40.00,0.00
             """.format(time_str=str(self.test_time)))
 
         self.CORRECT_CERT_STATUS_CSV = dedent("""
@@ -120,10 +120,7 @@ class ReportTypeTests(ModuleStoreTestCase):
         refunded_certs = report.rows()
 
         # check that we have the right number
-        num_certs = 0
-        for cert in refunded_certs:
-            num_certs += 1
-        self.assertEqual(num_certs, 2)
+        self.assertEqual(len(list(refunded_certs)), 2)
 
         self.assertTrue(CertificateItem.objects.get(user=self.first_refund_user, course_id=self.course_key))
         self.assertTrue(CertificateItem.objects.get(user=self.second_refund_user, course_id=self.course_key))
@@ -184,7 +181,7 @@ class ItemizedPurchaseReportTest(ModuleStoreTestCase):
         self.course_reg_code_annotation = CourseRegCodeItemAnnotation(course_id=self.course_key, annotation=self.TEST_ANNOTATION)
         self.course_reg_code_annotation.save()
         self.cart = Order.get_cart_for_user(self.user)
-        self.reg = PaidCourseRegistration.add_to_order(self.cart, self.course_key)
+        self.reg = PaidCourseRegistration.add_to_order(self.cart, self.course_key, mode_slug=course_mode.mode_slug)
         self.cert_item = CertificateItem.add_to_order(self.cart, self.course_key, self.cost, 'verified')
         self.cart.purchase()
         self.now = datetime.datetime.now(pytz.UTC)
@@ -201,8 +198,8 @@ class ItemizedPurchaseReportTest(ModuleStoreTestCase):
 
         self.CORRECT_CSV = dedent("""
             Purchase Time,Order ID,Status,Quantity,Unit Cost,Total Cost,Currency,Description,Comments
-            {time_str},1,purchased,1,40,40,usd,Registration for Course: Robot Super Course,Ba\xc3\xbc\xe5\x8c\x85
-            {time_str},1,purchased,1,40,40,usd,verified cert for course Robot Super Course,
+            {time_str},1,purchased,1,40.00,40.00,usd,Registration for Course: Robot Super Course,Ba\xc3\xbc\xe5\x8c\x85
+            {time_str},1,purchased,1,40.00,40.00,usd,verified cert for course Robot Super Course,
             """.format(time_str=str(self.now)))
 
     def test_purchased_items_btw_dates(self):
@@ -210,18 +207,11 @@ class ItemizedPurchaseReportTest(ModuleStoreTestCase):
         purchases = report.rows()
 
         # since there's not many purchases, just run through the generator to make sure we've got the right number
-        num_purchases = 0
-        for item in purchases:
-            num_purchases += 1
-        self.assertEqual(num_purchases, 2)
+        self.assertEqual(len(list(purchases)), 2)
 
         report = initialize_report("itemized_purchase_report", self.now + self.FIVE_MINS, self.now + self.FIVE_MINS + self.FIVE_MINS)
         no_purchases = report.rows()
-
-        num_purchases = 0
-        for item in no_purchases:
-            num_purchases += 1
-        self.assertEqual(num_purchases, 0)
+        self.assertEqual(len(list(no_purchases)), 0)
 
     def test_purchased_csv(self):
         """

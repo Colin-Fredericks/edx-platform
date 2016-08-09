@@ -79,7 +79,7 @@ class SendLeafOutcomeTest(BaseOutcomeTest):
     @ddt.unpack
     def test_outcome_with_score(self, earned, possible, expected):
         tasks.send_leaf_outcome(
-            self.assignment.id,   # pylint: disable=no-member
+            self.assignment.id,
             earned,
             possible
         )
@@ -101,7 +101,7 @@ class SendCompositeOutcomeTest(BaseOutcomeTest):
         )
         self.weighted_scores = MagicMock()
         self.weighted_scores_mock = self.setup_patch(
-            'lti_provider.tasks.get_weighted_scores', self.weighted_scores
+            'lti_provider.tasks.progress.summary', self.weighted_scores
         )
         self.module_store = MagicMock()
         self.module_store.get_item = MagicMock(return_value=self.descriptor)
@@ -119,7 +119,7 @@ class SendCompositeOutcomeTest(BaseOutcomeTest):
     def test_outcome_with_score_score(self, earned, possible, expected):
         self.weighted_scores.score_for_module = MagicMock(return_value=(earned, possible))
         tasks.send_composite_outcome(
-            self.user.id, unicode(self.course_key), self.assignment.id, 1  # pylint: disable=no-member
+            self.user.id, unicode(self.course_key), self.assignment.id, 1
         )
         self.send_score_update_mock.assert_called_once_with(self.assignment, expected)
 
@@ -127,6 +127,6 @@ class SendCompositeOutcomeTest(BaseOutcomeTest):
         self.assignment.version_number = 2
         self.assignment.save()
         tasks.send_composite_outcome(
-            self.user.id, unicode(self.course_key), self.assignment.id, 1  # pylint: disable=no-member
+            self.user.id, unicode(self.course_key), self.assignment.id, 1
         )
         self.assertEqual(self.weighted_scores_mock.call_count, 0)

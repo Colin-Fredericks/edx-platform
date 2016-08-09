@@ -235,7 +235,7 @@ class NumericalResponseXMLFactory(ResponseXMLFactory):
 
         if partial_answers is not None and 'list' in credit_type:
             # The line below throws a false positive pylint violation, so it's excepted.
-            responseparam_element = etree.SubElement(response_element, 'responseparam')  # pylint: disable=E1101
+            responseparam_element = etree.SubElement(response_element, 'responseparam')
             responseparam_element.set('partial_answers', partial_answers)
 
         return response_element
@@ -264,11 +264,15 @@ class CustomResponseXMLFactory(ResponseXMLFactory):
         *expect*: The value passed to the function cfn
 
         *answer*: Inline script that calculates the answer
+
+        *answer_attr*: The "answer" attribute on the tag itself (treated as an
+        alias to "expect", though "expect" takes priority if both are given)
         """
 
         # Retrieve **kwargs
         cfn = kwargs.get('cfn', None)
         expect = kwargs.get('expect', None)
+        answer_attr = kwargs.get('answer_attr', None)
         answer = kwargs.get('answer', None)
         options = kwargs.get('options', None)
         cfn_extra_args = kwargs.get('cfn_extra_args', None)
@@ -281,6 +285,9 @@ class CustomResponseXMLFactory(ResponseXMLFactory):
 
         if expect:
             response_element.set('expect', str(expect))
+
+        if answer_attr:
+            response_element.set('answer', str(answer_attr))
 
         if answer:
             answer_element = etree.SubElement(response_element, "answer")
@@ -508,7 +515,6 @@ class FormulaResponseXMLFactory(ResponseXMLFactory):
         # "x,y,z@4,5,3:10,12,8#4" means plug in values for (x,y,z)
         # from within the box defined by points (4,5,3) and (10,12,8)
         # The "#4" means to repeat 4 times.
-        variables = [str(v) for v in sample_dict.keys()]
         low_range_vals = [str(f[0]) for f in sample_dict.values()]
         high_range_vals = [str(f[1]) for f in sample_dict.values()]
         sample_str = (
@@ -771,11 +777,11 @@ class StringResponseXMLFactory(ResponseXMLFactory):
                 hintgroup_element.set("hintfn", hint_fn)
 
         for additional_answer in additional_answers:
-            additional_node = etree.SubElement(response_element, "additional_answer")  # pylint: disable=no-member
+            additional_node = etree.SubElement(response_element, "additional_answer")
             additional_node.set("answer", additional_answer)
 
         for answer in non_attribute_answers:
-            additional_node = etree.SubElement(response_element, "additional_answer")  # pylint: disable=no-member
+            additional_node = etree.SubElement(response_element, "additional_answer")
             additional_node.text = answer
 
         return response_element

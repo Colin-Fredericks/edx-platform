@@ -1,22 +1,36 @@
+"""
+Django REST Framework serializers for the User API application
+"""
 from django.contrib.auth.models import User
 from rest_framework import serializers
+
+from openedx.core.lib.time_zone_utils import get_display_time_zone
 from student.models import UserProfile
 
 from .models import UserPreference
 
 
 class UserSerializer(serializers.HyperlinkedModelSerializer):
-    name = serializers.SerializerMethodField("get_name")
-    preferences = serializers.SerializerMethodField("get_preferences")
+    """
+    Serializer that generates a representation of a User entity containing a subset of fields
+    """
+    name = serializers.SerializerMethodField()
+    preferences = serializers.SerializerMethodField()
 
     def get_name(self, user):
+        """
+        Return the name attribute from the user profile object
+        """
         profile = UserProfile.objects.get(user=user)
         return profile.name
 
     def get_preferences(self, user):
+        """
+        Returns the set of preferences as a dict for the specified user
+        """
         return dict([(pref.key, pref.value) for pref in user.preferences.all()])
 
-    class Meta(object):  # pylint: disable=missing-docstring
+    class Meta(object):
         model = User
         # This list is the minimal set required by the notification service
         fields = ("id", "url", "email", "name", "username", "preferences")
@@ -24,19 +38,23 @@ class UserSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class UserPreferenceSerializer(serializers.HyperlinkedModelSerializer):
+    """
+    Serializer that generates a represenation of a UserPreference entity
+    """
     user = UserSerializer()
 
-    class Meta(object):  # pylint: disable=missing-docstring
+    class Meta(object):
         model = UserPreference
         depth = 1
 
 
 class RawUserPreferenceSerializer(serializers.ModelSerializer):
-    """Serializer that generates a raw representation of a user preference.
     """
-    user = serializers.PrimaryKeyRelatedField()
+    Serializer that generates a raw representation of a user preference.
+    """
+    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
 
-    class Meta(object):  # pylint: disable=missing-docstring
+    class Meta(object):
         model = UserPreference
         depth = 1
 
@@ -57,3 +75,31 @@ class ReadOnlyFieldsSerializerMixin(object):
         cls.Meta.read_only_fields tuple.
         """
         return getattr(cls.Meta, 'read_only_fields', '') + getattr(cls.Meta, 'explicit_read_only_fields', '')
+
+    @classmethod
+    def get_writeable_fields(cls):
+        """
+        Return all fields on this serializer that are writeable.
+        """
+        all_fields = getattr(cls.Meta, 'fields', tuple())
+        return tuple(set(all_fields) - set(cls.get_read_only_fields()))
+
+
+class CountryTimeZoneSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """
+    Serializer that generates a list of common time zones for a country
+    """
+    time_zone = serializers.SerializerMethodField()
+    description = serializers.SerializerMethodField()
+
+    def get_time_zone(self, time_zone_name):
+        """
+        Returns inputted time zone name
+        """
+        return time_zone_name
+
+    def get_description(self, time_zone_name):
+        """
+        Returns the display version of time zone [e.g. US/Pacific (PST, UTC-0800)]
+        """
+        return get_display_time_zone(time_zone_name)

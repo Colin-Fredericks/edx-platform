@@ -2,7 +2,9 @@
 Django module for Course Metadata class -- manages advanced settings and related parameters
 """
 from xblock.fields import Scope
+from xblock_django.models import XBlockStudioConfigurationFlag
 from xmodule.modulestore.django import modulestore
+
 from django.utils.translation import ugettext as _
 from django.conf import settings
 
@@ -26,7 +28,6 @@ class CourseMetadata(object):
         'enrollment_end',
         'tabs',
         'graceperiod',
-        'checklists',
         'show_timezone',
         'format',
         'graded',
@@ -50,6 +51,11 @@ class CourseMetadata(object):
         'is_proctored_enabled',
         'is_time_limited',
         'is_practice_exam',
+        'exam_review_rules',
+        'hide_after_due',
+        'self_paced',
+        'chrome',
+        'default_tab',
     ]
 
     @classmethod
@@ -72,13 +78,9 @@ class CourseMetadata(object):
         if not settings.FEATURES.get('ENABLE_VIDEO_UPLOAD_PIPELINE'):
             filtered_list.append('video_upload_pipeline')
 
-        # Do not show facebook_url if the feature is disabled.
-        if not settings.FEATURES.get('ENABLE_MOBILE_SOCIAL_FACEBOOK_FEATURES'):
-            filtered_list.append('facebook_url')
-
         # Do not show social sharing url field if the feature is disabled.
-        if (not settings.FEATURES.get('SOCIAL_SHARING_SETTINGS') or
-                not settings.FEATURES.get("SOCIAL_SHARING_SETTINGS").get("CUSTOM_COURSE_URLS")):
+        if (not hasattr(settings, 'SOCIAL_SHARING_SETTINGS') or
+                not getattr(settings, 'SOCIAL_SHARING_SETTINGS', {}).get("CUSTOM_COURSE_URLS")):
             filtered_list.append('social_sharing_url')
 
         # Do not show teams configuration if feature is disabled.
@@ -91,6 +93,15 @@ class CourseMetadata(object):
         # Do not show enable_ccx if feature is not enabled.
         if not settings.FEATURES.get('CUSTOM_COURSES_EDX'):
             filtered_list.append('enable_ccx')
+            filtered_list.append('ccx_connector')
+
+        # If the XBlockStudioConfiguration table is not being used, there is no need to
+        # display the "Allow Unsupported XBlocks" setting.
+        if not XBlockStudioConfigurationFlag.is_enabled():
+            filtered_list.append('allow_unsupported_xblocks')
+
+        if not settings.FEATURES.get('ENABLE_SUBSECTION_GRADES_SAVED'):
+            filtered_list.append('enable_subsection_grades_saved')
 
         return filtered_list
 

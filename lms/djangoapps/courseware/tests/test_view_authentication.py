@@ -21,7 +21,7 @@ from xmodule.modulestore.tests.factories import CourseFactory, ItemFactory
 from student.tests.factories import UserFactory, CourseEnrollmentFactory
 
 
-@attr('shard_1')
+@attr(shard=1)
 class TestViewAuth(ModuleStoreTestCase, LoginEnrollmentTestCase):
     """
     Check that view authentication works properly.
@@ -379,16 +379,18 @@ class TestViewAuth(ModuleStoreTestCase, LoginEnrollmentTestCase):
         self.assertFalse(self.enroll(self.course))
         self.assertTrue(self.enroll(self.test_course))
 
+        # Then, try as an instructor
         self.logout()
         self.login(self.instructor_user)
         self.assertTrue(self.enroll(self.course))
 
-        # unenroll and try again
+        # Then, try as global staff
+        self.logout()
         self.login(self.global_staff_user)
         self.assertTrue(self.enroll(self.course))
 
 
-@attr('shard_1')
+@attr(shard=1)
 class TestBetatesterAccess(ModuleStoreTestCase, CourseAccessTestMixin):
     """
     Tests for the beta tester feature

@@ -5,7 +5,6 @@ multiple courses.
 """
 from __future__ import absolute_import
 
-import json
 import logging
 
 from contentstore.views.item import create_xblock_info
@@ -86,7 +85,7 @@ def _display_library(library_key_string, request):
 
     response_format = 'html'
     if (
-            request.REQUEST.get('format', 'html') == 'json' or
+            request.GET.get('format', 'html') == 'json' or
             'application/json' in request.META.get('HTTP_ACCEPT', 'text/html')
     ):
         response_format = 'json'
@@ -191,7 +190,7 @@ def library_blocks_view(library, user, response_format):
     return render_to_response('library.html', {
         'can_edit': can_edit,
         'context_library': library,
-        'component_templates': json.dumps(component_templates),
+        'component_templates': component_templates,
         'xblock_info': xblock_info,
         'templates': CONTAINER_TEMPLATES,
     })

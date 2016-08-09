@@ -11,8 +11,9 @@ from django.utils.timezone import utc
 from django.test.utils import override_settings
 from nose.plugins.attrib import attr
 
-from courseware.field_overrides import OverrideFieldData  # pylint: disable=import-error
-from student.tests.factories import UserFactory  # pylint: disable=import-error
+from courseware.field_overrides import OverrideFieldData
+from lms.djangoapps.ccx.tests.test_overrides import inject_field_overrides
+from student.tests.factories import UserFactory
 from xmodule.fields import Date
 from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase, SharedModuleStoreTestCase
 from xmodule.modulestore.tests.factories import CourseFactory, ItemFactory
@@ -23,7 +24,7 @@ from ..views import tools
 DATE_FIELD = Date()
 
 
-@attr('shard_1')
+@attr(shard=1)
 class TestDashboardError(unittest.TestCase):
     """
     Test DashboardError exceptions.
@@ -34,7 +35,7 @@ class TestDashboardError(unittest.TestCase):
         self.assertEqual(response, {'error': 'Oh noes!'})
 
 
-@attr('shard_1')
+@attr(shard=1)
 class TestHandleDashboardError(unittest.TestCase):
     """
     Test handle_dashboard_error decorator.
@@ -63,7 +64,7 @@ class TestHandleDashboardError(unittest.TestCase):
         self.assertEqual(view(None, None), "Oh yes!")
 
 
-@attr('shard_1')
+@attr(shard=1)
 class TestRequireStudentIdentifier(unittest.TestCase):
     """
     Test require_student_from_identifier()
@@ -86,7 +87,7 @@ class TestRequireStudentIdentifier(unittest.TestCase):
             tools.require_student_from_identifier("invalid")
 
 
-@attr('shard_1')
+@attr(shard=1)
 class TestParseDatetime(unittest.TestCase):
     """
     Test date parsing.
@@ -101,7 +102,7 @@ class TestParseDatetime(unittest.TestCase):
             tools.parse_datetime('foo')
 
 
-@attr('shard_1')
+@attr(shard=1)
 class TestFindUnit(SharedModuleStoreTestCase):
     """
     Test the find_unit function.
@@ -131,7 +132,7 @@ class TestFindUnit(SharedModuleStoreTestCase):
             tools.find_unit(self.course, url)
 
 
-@attr('shard_1')
+@attr(shard=1)
 class TestGetUnitsWithDueDate(ModuleStoreTestCase):
     """
     Test the get_units_with_due_date function.
@@ -167,7 +168,7 @@ class TestGetUnitsWithDueDate(ModuleStoreTestCase):
             urls((self.week1, self.week2)))
 
 
-@attr('shard_1')
+@attr(shard=1)
 class TestTitleOrUrl(unittest.TestCase):
     """
     Test the title_or_url funciton.
@@ -182,7 +183,7 @@ class TestTitleOrUrl(unittest.TestCase):
         self.assertEquals(tools.title_or_url(unit), 'test:hello')
 
 
-@attr('shard_1')
+@attr(shard=1)
 @override_settings(
     FIELD_OVERRIDE_PROVIDERS=(
         'courseware.student_field_overrides.IndividualStudentOverrideProvider',),
@@ -196,7 +197,6 @@ class TestSetDueDateExtension(ModuleStoreTestCase):
         Fixtures.
         """
         super(TestSetDueDateExtension, self).setUp()
-        OverrideFieldData.provider_classes = None
 
         self.due = due = datetime.datetime(2010, 5, 12, 2, 42, tzinfo=utc)
         course = CourseFactory.create()
@@ -216,12 +216,7 @@ class TestSetDueDateExtension(ModuleStoreTestCase):
         self.week3 = week3
         self.user = user
 
-        # Apparently the test harness doesn't use LmsFieldStorage, and I'm not
-        # sure if there's a way to poke the test harness to do so.  So, we'll
-        # just inject the override field storage in this brute force manner.
-        for block in (course, week1, week2, week3, homework, assignment):
-            block._field_data = OverrideFieldData.wrap(  # pylint: disable=protected-access
-                user, course, block._field_data)  # pylint: disable=protected-access
+        inject_field_overrides((course, week1, week2, week3, homework, assignment), course, user)
 
     def tearDown(self):
         super(TestSetDueDateExtension, self).tearDown()
@@ -247,7 +242,7 @@ class TestSetDueDateExtension(ModuleStoreTestCase):
 
     def test_set_due_date_extension_num_queries(self):
         extended = datetime.datetime(2013, 12, 25, 0, 0, tzinfo=utc)
-        with self.assertNumQueries(4):
+        with self.assertNumQueries(5):
             tools.set_due_date_extension(self.course, self.week1, self.user, extended)
             self._clear_field_data_cache()
 
@@ -268,7 +263,7 @@ class TestSetDueDateExtension(ModuleStoreTestCase):
         self.assertEqual(self.week1.due, self.due)
 
 
-@attr('shard_1')
+@attr(shard=1)
 class TestDataDumps(ModuleStoreTestCase):
     """
     Test data dumps for reporting.

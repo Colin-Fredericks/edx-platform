@@ -1,46 +1,58 @@
 # -*- coding: utf-8 -*-
 """Tests for the teams API at the HTTP request level."""
 import json
-import pytz
 from datetime import datetime
+
+import pytz
 from dateutil import parser
 import ddt
 from elasticsearch.exceptions import ConnectionError
 from mock import patch
 from search.search_engine_base import SearchEngine
-
 from django.core.urlresolvers import reverse
 from django.conf import settings
 from django.db.models.signals import post_save
 from django.utils import translation
 from nose.plugins.attrib import attr
+import unittest
 from rest_framework.test import APITestCase, APIClient
+from xmodule.modulestore.tests.django_utils import SharedModuleStoreTestCase
+from xmodule.modulestore.tests.factories import CourseFactory
 
 from courseware.tests.factories import StaffFactory
 from common.test.utils import skip_signal
 from student.tests.factories import UserFactory, AdminFactory, CourseEnrollmentFactory
 from student.models import CourseEnrollment
 from util.testing import EventTestMixin
-from xmodule.modulestore.tests.django_utils import SharedModuleStoreTestCase
-from xmodule.modulestore.tests.factories import CourseFactory
 from .factories import CourseTeamFactory, LAST_ACTIVITY_AT
 from ..models import CourseTeamMembership
 from ..search_indexes import CourseTeamIndexer, CourseTeam, course_team_post_save_callback
-
 from django_comment_common.models import Role, FORUM_ROLE_COMMUNITY_TA
 from django_comment_common.utils import seed_permissions_roles
 
 
-@attr('shard_1')
+@attr(shard=1)
 class TestDashboard(SharedModuleStoreTestCase):
     """Tests for the Teams dashboard."""
     test_password = "test"
+
+    NUM_TOPICS = 10
 
     @classmethod
     def setUpClass(cls):
         super(TestDashboard, cls).setUpClass()
         cls.course = CourseFactory.create(
-            teams_configuration={"max_team_size": 10, "topics": [{"name": "foo", "id": 0, "description": "test topic"}]}
+            teams_configuration={
+                "max_team_size": 10,
+                "topics": [
+                    {
+                        "name": "Topic {}".format(topic_id),
+                        "id": topic_id,
+                        "description": "Description for topic {}".format(topic_id)
+                    }
+                    for topic_id in range(cls.NUM_TOPICS)
+                ]
+            }
         )
 
     def setUp(self):
@@ -97,6 +109,31 @@ class TestDashboard(SharedModuleStoreTestCase):
         response = self.client.get(teams_url)
         self.assertEqual(404, response.status_code)
 
+    @unittest.skip("Fix this - getting unreliable query counts")
+    def test_query_counts(self):
+        # Enroll in the course and log in
+        CourseEnrollmentFactory.create(user=self.user, course_id=self.course.id)
+        self.client.login(username=self.user.username, password=self.test_password)
+
+        # Check the query count on the dashboard with no teams
+        with self.assertNumQueries(18):
+            self.client.get(self.teams_url)
+
+        # Create some teams
+        for topic_id in range(self.NUM_TOPICS):
+            team = CourseTeamFactory.create(
+                name=u"Team for topic {}".format(topic_id),
+                course_id=self.course.id,
+                topic_id=topic_id,
+            )
+
+        # Add the user to the last team
+        team.add_user(self.user)
+
+        # Check the query count on the dashboard again
+        with self.assertNumQueries(24):
+            self.client.get(self.teams_url)
+
     def test_bad_course_id(self):
         """
         Verifies expected behavior when course_id does not reference an existing course or is invalid.
@@ -112,6 +149,49 @@ class TestDashboard(SharedModuleStoreTestCase):
         response = self.client.get(bad_team_url)
         self.assertEqual(404, response.status_code)
 
+    def get_user_course_specific_teams_list(self):
+        """Gets the list of user course specific teams."""
+
+        # Create a course two
+        course_two = CourseFactory.create(
+            teams_configuration={
+                "max_team_size": 1,
+                "topics": [
+                    {
+                        "name": "Test topic for course two",
+                        "id": 1,
+                        "description": "Description for test topic for course two."
+                    }
+                ]
+            }
+        )
+
+        # Login and enroll user in both course course
+        self.client.login(username=self.user.username, password=self.test_password)
+        CourseEnrollmentFactory.create(user=self.user, course_id=self.course.id)
+        CourseEnrollmentFactory.create(user=self.user, course_id=course_two.id)
+
+        # Create teams in both courses
+        course_one_team = CourseTeamFactory.create(name="Course one team", course_id=self.course.id, topic_id=1)
+        course_two_team = CourseTeamFactory.create(name="Course two team", course_id=course_two.id, topic_id=1)  # pylint: disable=unused-variable
+
+        # Check that initially list of user teams in course one is empty
+        course_one_teams_url = reverse('teams_dashboard', args=[self.course.id])
+        response = self.client.get(course_one_teams_url)
+        self.assertIn('"teams": {"count": 0', response.content)
+
+        # Add user to a course one team
+        course_one_team.add_user(self.user)
+
+        # Check that list of user teams in course one is not empty, it is one now
+        response = self.client.get(course_one_teams_url)
+        self.assertIn('"teams": {"count": 1', response.content)
+
+        # Check that list of user teams in course two is still empty
+        course_two_teams_url = reverse('teams_dashboard', args=[course_two.id])
+        response = self.client.get(course_two_teams_url)
+        self.assertIn('"teams": {"count": 0', response.content)
+
 
 class TeamAPITestCase(APITestCase, SharedModuleStoreTestCase):
     """Base class for Team API test cases."""
@@ -120,84 +200,90 @@ class TeamAPITestCase(APITestCase, SharedModuleStoreTestCase):
 
     @classmethod
     def setUpClass(cls):
-        super(TeamAPITestCase, cls).setUpClass()
-        teams_configuration_1 = {
-            'topics':
-            [
-                {
-                    'id': 'topic_{}'.format(i),
-                    'name': name,
-                    'description': 'Description for topic {}.'.format(i)
-                } for i, name in enumerate([u'Sólar power', 'Wind Power', 'Nuclear Power', 'Coal Power'])
-            ]
-        }
-        cls.test_course_1 = CourseFactory.create(
-            org='TestX',
-            course='TS101',
-            display_name='Test Course',
-            teams_configuration=teams_configuration_1
-        )
+        with super(TeamAPITestCase, cls).setUpClassAndTestData():
+            teams_configuration_1 = {
+                'topics':
+                [
+                    {
+                        'id': 'topic_{}'.format(i),
+                        'name': name,
+                        'description': 'Description for topic {}.'.format(i)
+                    } for i, name in enumerate([u'Sólar power', 'Wind Power', 'Nuclear Power', 'Coal Power'])
+                ]
+            }
+            cls.test_course_1 = CourseFactory.create(
+                org='TestX',
+                course='TS101',
+                display_name='Test Course',
+                teams_configuration=teams_configuration_1
+            )
 
-        teams_configuration_2 = {
-            'topics':
-            [
-                {
-                    'id': 'topic_5',
-                    'name': 'Other Interests',
-                    'description': 'Description for topic 5.'
-                },
-                {
-                    'id': 'topic_6',
-                    'name': 'Public Profiles',
-                    'description': 'Description for topic 6.'
-                },
-            ],
-            'max_team_size': 1
-        }
-        cls.test_course_2 = CourseFactory.create(
-            org='MIT',
-            course='6.002x',
-            display_name='Circuits',
-            teams_configuration=teams_configuration_2
-        )
+            teams_configuration_2 = {
+                'topics':
+                [
+                    {
+                        'id': 'topic_5',
+                        'name': 'Other Interests',
+                        'description': 'Description for topic 5.'
+                    },
+                    {
+                        'id': 'topic_6',
+                        'name': 'Public Profiles',
+                        'description': 'Description for topic 6.'
+                    },
+                    {
+                        'id': 'Topic_6.5',
+                        'name': 'Test Accessibility Topic',
+                        'description': 'Description for Topic_6.5'
+                    },
+                ],
+                'max_team_size': 1
+            }
+            cls.test_course_2 = CourseFactory.create(
+                org='MIT',
+                course='6.002x',
+                display_name='Circuits',
+                teams_configuration=teams_configuration_2
+            )
 
-    def setUp(self):
-        super(TeamAPITestCase, self).setUp()
-        self.topics_count = 4
-        self.users = {
-            'staff': AdminFactory.create(password=self.test_password),
-            'course_staff': StaffFactory.create(course_key=self.test_course_1.id, password=self.test_password)
+    @classmethod
+    def setUpTestData(cls):
+        super(TeamAPITestCase, cls).setUpTestData()
+        cls.topics_count = 4
+        cls.users = {
+            'staff': AdminFactory.create(password=cls.test_password),
+            'course_staff': StaffFactory.create(course_key=cls.test_course_1.id, password=cls.test_password)
         }
-        self.create_and_enroll_student(username='student_enrolled')
-        self.create_and_enroll_student(username='student_enrolled_not_on_team')
-        self.create_and_enroll_student(username='student_unenrolled', courses=[])
+        cls.create_and_enroll_student(username='student_enrolled')
+        cls.create_and_enroll_student(username='student_enrolled_not_on_team')
+        cls.create_and_enroll_student(username='student_unenrolled', courses=[])
 
         # Make this student a community TA.
-        self.create_and_enroll_student(username='community_ta')
-        seed_permissions_roles(self.test_course_1.id)
-        community_ta_role = Role.objects.get(name=FORUM_ROLE_COMMUNITY_TA, course_id=self.test_course_1.id)
-        community_ta_role.users.add(self.users['community_ta'])
+        cls.create_and_enroll_student(username='community_ta')
+        seed_permissions_roles(cls.test_course_1.id)
+        community_ta_role = Role.objects.get(name=FORUM_ROLE_COMMUNITY_TA, course_id=cls.test_course_1.id)
+        community_ta_role.users.add(cls.users['community_ta'])
 
         # This student is enrolled in both test courses and is a member of a team in each course, but is not on the
         # same team as student_enrolled.
-        self.create_and_enroll_student(
-            courses=[self.test_course_1, self.test_course_2],
+        cls.create_and_enroll_student(
+            courses=[cls.test_course_1, cls.test_course_2],
             username='student_enrolled_both_courses_other_team'
         )
 
         # Make this student have a public profile
-        self.create_and_enroll_student(
-            courses=[self.test_course_2],
+        cls.create_and_enroll_student(
+            courses=[cls.test_course_2],
             username='student_enrolled_public_profile'
         )
-        profile = self.users['student_enrolled_public_profile'].profile
+        profile = cls.users['student_enrolled_public_profile'].profile
         profile.year_of_birth = 1970
         profile.save()
 
         # This student is enrolled in the other course, but not yet a member of a team. This is to allow
         # course_2 to use a max_team_size of 1 without breaking other tests on course_1
-        self.create_and_enroll_student(
-            courses=[self.test_course_2],
+        cls.create_and_enroll_student(
+            courses=[cls.test_course_2],
             username='student_enrolled_other_course_not_on_team'
         )
 
@@ -207,55 +293,58 @@ class TeamAPITestCase(APITestCase, SharedModuleStoreTestCase):
             sender=CourseTeam,
             dispatch_uid='teams.signals.course_team_post_save_callback'
         ):
-            self.solar_team = CourseTeamFactory.create(
+            cls.solar_team = CourseTeamFactory.create(
                 name=u'Sólar team',
-                course_id=self.test_course_1.id,
+                course_id=cls.test_course_1.id,
                 topic_id='topic_0'
             )
-            self.wind_team = CourseTeamFactory.create(name='Wind Team', course_id=self.test_course_1.id)
-            self.nuclear_team = CourseTeamFactory.create(name='Nuclear Team', course_id=self.test_course_1.id)
-            self.another_team = CourseTeamFactory.create(name='Another Team', course_id=self.test_course_2.id)
-            self.public_profile_team = CourseTeamFactory.create(
+            cls.wind_team = CourseTeamFactory.create(name='Wind Team', course_id=cls.test_course_1.id)
+            cls.nuclear_team = CourseTeamFactory.create(name='Nuclear Team', course_id=cls.test_course_1.id)
+            cls.another_team = CourseTeamFactory.create(name='Another Team', course_id=cls.test_course_2.id)
+            cls.public_profile_team = CourseTeamFactory.create(
                 name='Public Profile Team',
-                course_id=self.test_course_2.id,
+                course_id=cls.test_course_2.id,
                 topic_id='topic_6'
             )
-            self.search_team = CourseTeamFactory.create(
+            cls.search_team = CourseTeamFactory.create(
                 name='Search',
                 description='queryable text',
                 country='GS',
                 language='to',
-                course_id=self.test_course_2.id,
+                course_id=cls.test_course_2.id,
                 topic_id='topic_7'
             )
-            self.chinese_team = CourseTeamFactory.create(
+            cls.chinese_team = CourseTeamFactory.create(
                 name=u'著文企臺個',
                 description=u'共樣地面較，件展冷不護者這與民教過住意，國制銀產物助音是勢一友',
                 country='CN',
                 language='zh_HANS',
-                course_id=self.test_course_2.id,
+                course_id=cls.test_course_2.id,
                 topic_id='topic_7'
             )
 
-        self.test_team_name_id_map = {team.name: team for team in (
-            self.solar_team,
-            self.wind_team,
-            self.nuclear_team,
-            self.another_team,
-            self.public_profile_team,
-            self.search_team,
-            self.chinese_team,
+        cls.test_team_name_id_map = {team.name: team for team in (
+            cls.solar_team,
+            cls.wind_team,
+            cls.nuclear_team,
+            cls.another_team,
+            cls.public_profile_team,
+            cls.search_team,
+            cls.chinese_team,
         )}
 
-        for user, course in [('staff', self.test_course_1), ('course_staff', self.test_course_1)]:
+        for user, course in [('staff', cls.test_course_1), ('course_staff', cls.test_course_1)]:
             CourseEnrollment.enroll(
-                self.users[user], course.id, check_access=True
+                cls.users[user], course.id, check_access=True
             )
 
-        self.solar_team.add_user(self.users['student_enrolled'])
-        self.nuclear_team.add_user(self.users['student_enrolled_both_courses_other_team'])
-        self.another_team.add_user(self.users['student_enrolled_both_courses_other_team'])
-        self.public_profile_team.add_user(self.users['student_enrolled_public_profile'])
+        # Django Rest Framework v3 requires us to pass a request to serializers
+        # that have URL fields.  Since we're invoking this code outside the context
+        # of a request, we need to simulate that there's a request.
+        cls.solar_team.add_user(cls.users['student_enrolled'])
+        cls.nuclear_team.add_user(cls.users['student_enrolled_both_courses_other_team'])
+        cls.another_team.add_user(cls.users['student_enrolled_both_courses_other_team'])
+        cls.public_profile_team.add_user(cls.users['student_enrolled_public_profile'])
 
     def build_membership_data_raw(self, username, team):
         """Assembles a membership creation payload based on the raw values provided."""
@@ -265,21 +354,22 @@ class TeamAPITestCase(APITestCase, SharedModuleStoreTestCase):
         """Assembles a membership creation payload based on the username and team model provided."""
         return self.build_membership_data_raw(self.users[username].username, team.team_id)
 
-    def create_and_enroll_student(self, courses=None, username=None):
+    @classmethod
+    def create_and_enroll_student(cls, courses=None, username=None):
         """ Creates a new student and enrolls that student in the course.
 
-        Adds the new user to the self.users dictionary with the username as the key.
+        Adds the new user to the cls.users dictionary with the username as the key.
 
         Returns the username once the user has been created.
         """
         if username is not None:
-            user = UserFactory.create(password=self.test_password, username=username)
+            user = UserFactory.create(password=cls.test_password, username=username)
         else:
-            user = UserFactory.create(password=self.test_password)
-        courses = courses if courses is not None else [self.test_course_1]
+            user = UserFactory.create(password=cls.test_password)
+        courses = courses if courses is not None else [cls.test_course_1]
         for course in courses:
             CourseEnrollment.enroll(user, course.id, check_access=True)
-        self.users[user.username] = user
+        cls.users[user.username] = user
 
         return user.username
 
@@ -311,7 +401,17 @@ class TeamAPITestCase(APITestCase, SharedModuleStoreTestCase):
             response = func(url, data=data, content_type=content_type)
         else:
             response = func(url, data=data)
-        self.assertEqual(expected_status, response.status_code)
+
+        self.assertEqual(
+            expected_status,
+            response.status_code,
+            msg="Expected status {expected} but got {actual}: {content}".format(
+                expected=expected_status,
+                actual=response.status_code,
+                content=response.content,
+            )
+        )
+
         if expected_status == 200:
             return json.loads(response.content)
         else:
@@ -323,6 +423,32 @@ class TeamAPITestCase(APITestCase, SharedModuleStoreTestCase):
         if 'course_id' not in data and not no_course_id:
             data.update({'course_id': self.test_course_1.id})
         return self.make_call(reverse('teams_list'), expected_status, 'get', data, **kwargs)
+
+    def get_user_course_specific_teams_list(self):
+        """Gets the list of user course specific teams."""
+
+        # Create and enroll user in both courses
+        user = self.create_and_enroll_student(
+            courses=[self.test_course_1, self.test_course_2],
+            username='test_user_enrolled_both_courses'
+        )
+        course_one_data = {'course_id': self.test_course_1.id, 'username': user}
+        course_two_data = {'course_id': self.test_course_2.id, 'username': user}
+
+        # Check that initially list of user teams in course one is empty
+        team_list = self.get_teams_list(user=user, expected_status=200, data=course_one_data)
+        self.assertEqual(team_list['count'], 0)
+
+        # Add user to a course one team
+        self.solar_team.add_user(self.users[user])
+
+        # Check that list of user teams in course one is not empty now
+        team_list = self.get_teams_list(user=user, expected_status=200, data=course_one_data)
+        self.assertEqual(team_list['count'], 1)
+
+        # Check that list of user teams in course two is still empty
+        team_list = self.get_teams_list(user=user, expected_status=200, data=course_two_data)
+        self.assertEqual(team_list['count'], 0)
 
     def build_team_data(self, name="Test team", course=None, description="Filler description", **kwargs):
         """Creates the payload for creating a team. kwargs can be used to specify additional fields."""
@@ -418,7 +544,7 @@ class TestListTeamsAPI(EventTestMixin, TeamAPITestCase):
     """Test cases for the team listing API endpoint."""
 
     def setUp(self):  # pylint: disable=arguments-differ
-        super(TestListTeamsAPI, self).setUp('teams.utils.tracker')
+        super(TestListTeamsAPI, self).setUp('lms.djangoapps.teams.utils.tracker')
 
     @ddt.data(
         (None, 401),
@@ -458,6 +584,10 @@ class TestListTeamsAPI(EventTestMixin, TeamAPITestCase):
 
     def test_filter_topic_id(self):
         self.verify_names({'course_id': self.test_course_1.id, 'topic_id': 'topic_0'}, 200, [u'Sólar team'])
+
+    def test_filter_username(self):
+        self.verify_names({'course_id': self.test_course_1.id, 'username': 'student_enrolled'}, 200, [u'Sólar team'])
+        self.verify_names({'course_id': self.test_course_1.id, 'username': 'staff'}, 200, [])
 
     @ddt.data(
         (None, 200, ['Nuclear Team', u'Sólar team', 'Wind Team']),
@@ -592,7 +722,7 @@ class TestCreateTeamAPI(EventTestMixin, TeamAPITestCase):
     """Test cases for the team creation endpoint."""
 
     def setUp(self):  # pylint: disable=arguments-differ
-        super(TestCreateTeamAPI, self).setUp('teams.utils.tracker')
+        super(TestCreateTeamAPI, self).setUp('lms.djangoapps.teams.utils.tracker')
 
     @ddt.data(
         (None, 401),
@@ -803,7 +933,7 @@ class TestDeleteTeamAPI(EventTestMixin, TeamAPITestCase):
     """Test cases for the team delete endpoint."""
 
     def setUp(self):  # pylint: disable=arguments-differ
-        super(TestDeleteTeamAPI, self).setUp('teams.utils.tracker')
+        super(TestDeleteTeamAPI, self).setUp('lms.djangoapps.teams.utils.tracker')
 
     @ddt.data(
         (None, 401),
@@ -853,7 +983,7 @@ class TestUpdateTeamAPI(EventTestMixin, TeamAPITestCase):
     """Test cases for the team update endpoint."""
 
     def setUp(self):  # pylint: disable=arguments-differ
-        super(TestUpdateTeamAPI, self).setUp('teams.utils.tracker')
+        super(TestUpdateTeamAPI, self).setUp('lms.djangoapps.teams.utils.tracker')
 
     @ddt.data(
         (None, 401),
@@ -1070,6 +1200,9 @@ class TestDetailTopicAPI(TeamAPITestCase):
     def test_invalid_topic_id(self):
         self.get_topic_detail('no_such_topic', self.test_course_1.id, 404)
 
+    def test_topic_detail_with_caps_and_dot_in_id(self):
+        self.get_topic_detail('Topic_6.5', self.test_course_2.id, user='student_enrolled_public_profile')
+
     def test_team_count(self):
         """Test that team_count is included with a topic"""
         topic = self.get_topic_detail(topic_id='topic_0', course_id=self.test_course_1.id)
@@ -1182,7 +1315,7 @@ class TestCreateMembershipAPI(EventTestMixin, TeamAPITestCase):
     """Test cases for the membership creation endpoint."""
 
     def setUp(self):  # pylint: disable=arguments-differ
-        super(TestCreateMembershipAPI, self).setUp('teams.utils.tracker')
+        super(TestCreateMembershipAPI, self).setUp('lms.djangoapps.teams.utils.tracker')
 
     @ddt.data(
         (None, 401),
@@ -1346,7 +1479,7 @@ class TestDeleteMembershipAPI(EventTestMixin, TeamAPITestCase):
     """Test cases for the membership deletion endpoint."""
 
     def setUp(self):  # pylint: disable=arguments-differ
-        super(TestDeleteMembershipAPI, self).setUp('teams.utils.tracker')
+        super(TestDeleteMembershipAPI, self).setUp('lms.djangoapps.teams.utils.tracker')
 
     @ddt.data(
         (None, 401),

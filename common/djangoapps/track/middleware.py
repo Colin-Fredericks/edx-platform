@@ -14,6 +14,7 @@ import re
 import sys
 
 from django.conf import settings
+from ipware.ip import get_ip
 
 from track import views
 from track import contexts
@@ -24,7 +25,6 @@ log = logging.getLogger(__name__)
 
 CONTEXT_NAME = 'edx.request'
 META_KEY_TO_CONTEXT_KEY = {
-    'REMOTE_ADDR': 'ip',
     'SERVER_NAME': 'host',
     'HTTP_USER_AGENT': 'agent',
     'PATH_INFO': 'path',
@@ -137,9 +137,13 @@ class TrackMiddleware(object):
             'session': self.get_session_key(request),
             'user_id': self.get_user_primary_key(request),
             'username': self.get_username(request),
+            'ip': self.get_request_ip_address(request),
         }
         for header_name, context_key in META_KEY_TO_CONTEXT_KEY.iteritems():
-            context[context_key] = request.META.get(header_name, '')
+            # HTTP headers may contain Latin1 characters. Decoding using Latin1 encoding here
+            # avoids encountering UnicodeDecodeError exceptions when these header strings are
+            # output to tracking logs.
+            context[context_key] = request.META.get(header_name, '').decode('latin1')
 
         # Google Analytics uses the clientId to keep track of unique visitors. A GA cookie looks like
         # this: _ga=GA1.2.1033501218.1368477899. The clientId is this part: 1033501218.1368477899.
@@ -194,6 +198,14 @@ class TrackMiddleware(object):
         try:
             return request.user.username
         except AttributeError:
+            return ''
+
+    def get_request_ip_address(self, request):
+        """Gets the IP address of the request"""
+        ip_address = get_ip(request)
+        if ip_address is not None:
+            return ip_address
+        else:
             return ''
 
     def process_response(self, _request, response):

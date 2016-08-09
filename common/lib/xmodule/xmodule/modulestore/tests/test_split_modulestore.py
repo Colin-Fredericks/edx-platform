@@ -10,9 +10,10 @@ import re
 import unittest
 import uuid
 
+import ddt
 from contracts import contract
 from nose.plugins.attrib import attr
-from django.core.cache import get_cache, InvalidCacheBackendError
+from django.core.cache import caches, InvalidCacheBackendError
 
 from openedx.core.lib import tempdir
 from xblock.fields import Reference, ReferenceList, ReferenceValueDict
@@ -23,7 +24,8 @@ from xmodule.modulestore.exceptions import (
     DuplicateItemError, DuplicateCourseError,
     InsufficientSpecificationError
 )
-from opaque_keys.edx.locator import CourseLocator, BlockUsageLocator, VersionTree, LocalId
+from opaque_keys.edx.locator import CourseKey, CourseLocator, BlockUsageLocator, VersionTree, LocalId
+from ccx_keys.locator import CCXBlockUsageLocator
 from xmodule.modulestore.inheritance import InheritanceMixin
 from xmodule.x_module import XModuleMixin
 from xmodule.fields import Date, Timedelta
@@ -541,10 +543,8 @@ class SplitModuleTest(unittest.TestCase):
         """
         Clear persistence between each test.
         """
-        collection_prefix = SplitModuleTest.MODULESTORE['DOC_STORE_CONFIG']['collection'] + '.'
         if SplitModuleTest.modulestore:
-            for collection in ('active_versions', 'structures', 'definitions'):
-                modulestore().db.drop_collection(collection_prefix + collection)
+            modulestore()._drop_database(database=False, connections=False)  # pylint: disable=protected-access
             # drop the modulestore to force re init
             SplitModuleTest.modulestore = None
         super(SplitModuleTest, self).tearDown()
@@ -596,6 +596,7 @@ class TestHasChildrenAtDepth(SplitModuleTest):
         self.assertFalse(ch3.has_children_at_depth(1))
 
 
+@ddt.ddt
 class SplitModuleCourseTests(SplitModuleTest):
     '''
     Course CRUD operation tests
@@ -623,6 +624,26 @@ class SplitModuleCourseTests(SplitModuleTest):
         # check dates and graders--forces loading of descriptor
         self.assertEqual(course.edited_by, "testassist@edx.org")
         self.assertDictEqual(course.grade_cutoffs, {"Pass": 0.45})
+
+    @patch('xmodule.tabs.CourseTab.from_json', side_effect=mock_tab_from_json)
+    def test_get_courses_with_same_course_index(self, _from_json):
+        """
+        Test that if two courses point to same course index,
+        `get_courses` should return both courses.
+        """
+        courses = modulestore().get_courses(branch=BRANCH_NAME_DRAFT)
+        # Should have gotten 3 draft courses.
+        self.assertEqual(len(courses), 3)
+
+        course_index = modulestore().get_course_index_info(courses[0].id)
+        # Creating a new course with same course index of another course.
+        new_draft_course = modulestore().create_course(
+            'testX', 'rerun_2.0', 'run_q2', 1, BRANCH_NAME_DRAFT, versions_dict=course_index['versions']
+        )
+        courses = modulestore().get_courses(branch=BRANCH_NAME_DRAFT)
+        # Should have gotten 4 draft courses.
+        self.assertEqual(len(courses), 4)
+        self.assertIn(new_draft_course.id.version_agnostic(), [c.id for c in courses])
 
     @patch('xmodule.tabs.CourseTab.from_json', side_effect=mock_tab_from_json)
     def test_get_org_courses(self, _from_json):
@@ -888,6 +909,22 @@ class SplitModuleCourseTests(SplitModuleTest):
         version_history = modulestore().get_block_generations(second_problem.location)
         self.assertNotEqual(version_history.locator.version_guid, first_problem.location.version_guid)
 
+    @ddt.data(
+        ("course-v1:edx+test_course+test_run", BlockUsageLocator),
+        ("ccx-v1:edX+test_course+test_run+ccx@1", CCXBlockUsageLocator),
+    )
+    @ddt.unpack
+    def test_make_course_usage_key(self, course_id, root_block_cls):
+        """Test that we get back the appropriate usage key for the root of a course key.
+
+        In particular, we want to make sure that it properly handles CCX courses.
+        """
+        course_key = CourseKey.from_string(course_id)
+        root_block_key = modulestore().make_course_usage_key(course_key)
+        self.assertIsInstance(root_block_key, root_block_cls)
+        self.assertEqual(root_block_key.block_type, "course")
+        self.assertEqual(root_block_key.name, "course")
+
 
 class TestCourseStructureCache(SplitModuleTest):
     """Tests for the CourseStructureCache"""
@@ -895,7 +932,7 @@ class TestCourseStructureCache(SplitModuleTest):
     def setUp(self):
         # use the default cache, since the `course_structure_cache`
         # is a dummy cache during testing
-        self.cache = get_cache('default')
+        self.cache = caches['default']
 
         # make sure we clear the cache before every test...
         self.cache.clear()
@@ -1159,6 +1196,10 @@ class SplitModuleItemTests(SplitModuleTest):
         self.assertEqual(len(matches), 3)
         matches = modulestore().get_items(locator, qualifiers={'category': 'garbage'})
         self.assertEqual(len(matches), 0)
+        matches = modulestore().get_items(locator, qualifiers={'name': 'chapter1'})
+        self.assertEqual(len(matches), 1)
+        matches = modulestore().get_items(locator, qualifiers={'name': ['chapter1', 'chapter2']})
+        self.assertEqual(len(matches), 2)
         matches = modulestore().get_items(
             locator,
             qualifiers={'category': 'chapter'},

@@ -16,6 +16,8 @@ class CourseStructureApiTests(ModuleStoreTestCase):
     """
     MOCK_CACHE = "openedx.core.djangoapps.content.course_structures.api.v0.api.cache"
 
+    ENABLED_CACHES = ['default', 'mongo_metadata_inheritance', 'loc_cache']
+
     def setUp(self):
         """
         Test setup
@@ -99,7 +101,7 @@ class CourseStructureApiTests(ModuleStoreTestCase):
         """
         Verify that course_structure returns info for entire course.
         """
-        with mock.patch(self.MOCK_CACHE, cache.get_cache(backend='default')):
+        with mock.patch(self.MOCK_CACHE, cache.caches['default']):
             with self.assertNumQueries(3):
                 structure = course_structure(self.course.id)
 
@@ -110,7 +112,7 @@ class CourseStructureApiTests(ModuleStoreTestCase):
 
         self.assertDictEqual(structure, expected)
 
-        with mock.patch(self.MOCK_CACHE, cache.get_cache(backend='default')):
+        with mock.patch(self.MOCK_CACHE, cache.caches['default']):
             with self.assertNumQueries(2):
                 course_structure(self.course.id)
 
@@ -120,7 +122,7 @@ class CourseStructureApiTests(ModuleStoreTestCase):
         """
         block_types = ['html', 'video']
 
-        with mock.patch(self.MOCK_CACHE, cache.get_cache(backend='default')):
+        with mock.patch(self.MOCK_CACHE, cache.caches['default']):
             with self.assertNumQueries(3):
                 structure = course_structure(self.course.id, block_types=block_types)
 
@@ -131,7 +133,7 @@ class CourseStructureApiTests(ModuleStoreTestCase):
 
         self.assertDictEqual(structure, expected)
 
-        with mock.patch(self.MOCK_CACHE, cache.get_cache(backend='default')):
+        with mock.patch(self.MOCK_CACHE, cache.caches['default']):
             with self.assertNumQueries(2):
                 course_structure(self.course.id, block_types=block_types)
 

@@ -23,8 +23,8 @@
 // ====================
 $annotation-yellow: rgba(255,255,10,0.3);
 $color-copy-tip: rgb(100,100,100);
-$correct: $green-d1;
-$partiallycorrect: $green-d1;
+$correct: $green-d2;
+$partiallycorrect: $green-d2;
 $incorrect: $red;
 
 // +Extends - Capa
@@ -43,7 +43,6 @@ $incorrect: $red;
 
   &:after {
     @extend %use-font-awesome;
-    @include margin-left(17px);
     color: $color;
     font-size: 1.2em;
     content: $fontAwesomeIcon;
@@ -142,6 +141,10 @@ div.problem {
     }
   }
 
+  input.math {
+    direction: ltr; // Equations are always English
+  }
+
   .inline {
     display: inline;
 
@@ -174,6 +177,10 @@ div.problem {
         @include status-icon($correct, "\f00c");
         border: 2px solid $correct;
 
+        &:after {
+          @include margin-left($baseline*.75);
+        }
+
         // keep green for correct answers on hover.
         &:hover {
           border-color: $correct;
@@ -184,7 +191,11 @@ div.problem {
         @include status-icon($partiallycorrect, "\f069");
         border: 2px solid $partiallycorrect;
 
-        // keep green for correct answers on hover. 
+        &:after {
+          @include margin-left($baseline*.75);
+        }
+
+        // keep green for correct answers on hover.
         &:hover {
           border-color: $partiallycorrect;
         }
@@ -193,6 +204,10 @@ div.problem {
       &.choicegroup_incorrect {
         @include status-icon($incorrect, "\f00d");
         border: 2px solid $incorrect;
+
+        &:after {
+          @include margin-left($baseline*.75);
+        }
 
         // keep red for incorrect answers on hover.
         &:hover {
@@ -233,6 +248,7 @@ div.problem {
 div.problem {
 
   .indicator-container {
+      @include margin-left($baseline*.75);
 
     .status {
       width: $baseline;
@@ -364,7 +380,7 @@ div.problem {
         display: inline-block;
         width: 25px;
         height: 20px;
-        background: url('../images/partially-correct-icon.png') center center no-repeat;
+        background: url('#{$static-path}/images/partially-correct-icon.png') center center no-repeat;
       }
 
       input {
@@ -413,7 +429,7 @@ div.problem {
     }
 
     > span {
-      display: inline-block;
+      display: block;
       margin-bottom: lh(0.5);
     }
 
@@ -450,9 +466,9 @@ div.problem {
 
       span {
         margin-bottom: 0;
+        display: inline-block;
 
-        &.math {
-          display: inline-block;
+        &.MathJax_CHTML, &.MathJax, &.MathJax_SVG {
           padding: 6px;
           min-width: 30px;
           border: 1px solid #e3e3e3;
@@ -460,11 +476,6 @@ div.problem {
           background: #f1f1f1;
         }
       }
-    }
-
-    // Fix for formulaequationinput, overriding MathJax_Display default style to allow "loading" image to sit next to it
-    section.formulaequationinput div.equation .MathJax_Display {
-      display: inline-block !important;
     }
 
     // Hides equation previews in symbolic response problems when printing
@@ -754,6 +765,7 @@ div.problem {
     .status {
       display: inline-block;
       margin-top: ($baseline/2);
+      @include margin-left($baseline*.75);
       background: none;
     }
 
@@ -805,6 +817,14 @@ div.problem {
       }
     }
   }
+
+  .capa_inputtype.textline.text-input-dynamath, .inputtype.formulaequationinput {
+    display: inline-block;
+
+    input {
+      width: calc(100% - 45px);
+    }
+  }
 }
 
 
@@ -814,10 +834,6 @@ div.problem {
   .inputtype.option-input {
     margin: (-$baseline/2) 0 $baseline;
     padding-bottom: $baseline;
-
-    select {
-      @include margin-right($baseline/2);
-    }
 
     .indicator-container {
       display: inline-block;
@@ -963,7 +979,7 @@ div.problem {
   .detailed-solution {
     > p:first-child {
       @extend %t-strong;
-      color: #aaa;
+      color: $gray;
       text-transform: uppercase;
       font-style: normal;
       font-size: 0.9em;
@@ -1197,7 +1213,7 @@ div.problem {
         }
 
         .result-partially-correct {
-          background: url('../images/partially-correct-icon.png') left 20px no-repeat;
+          background: url('#{$static-path}/images/partially-correct-icon.png') left 20px no-repeat;
 
           .result-actual-output {
             color: #090;
@@ -1457,7 +1473,7 @@ div.problem .imageinput.capa_inputtype {
   }
 
   .partially-correct {
-    background: url('../images/partially-correct-icon.png') center center no-repeat;
+    background: url('#{$static-path}/images/partially-correct-icon.png') center center no-repeat;
   }
 }
 
@@ -1476,15 +1492,14 @@ div.problem .annotation-input {
   }
 
   .correct {
-    background: url('../images/correct-icon.png') center center no-repeat;
+    background: url('#{$static-path}/images/correct-icon.png') center center no-repeat;
   }
 
   .incorrect {
-    background: url('../images/incorrect-icon.png') center center no-repeat;
+    background: url('#{$static-path}/images/incorrect-icon.png') center center no-repeat;
   }
 
   .partially-correct {
-    background: url('../images/partially-correct-icon.png') center center no-repeat;
+    background: url('#{$static-path}/images/partially-correct-icon.png') center center no-repeat;
   }
 }
-

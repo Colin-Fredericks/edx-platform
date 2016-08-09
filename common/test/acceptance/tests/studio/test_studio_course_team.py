@@ -1,18 +1,16 @@
 """
 Acceptance tests for course in studio
 """
-from flaky import flaky
 from nose.plugins.attrib import attr
 
-from .base_studio_test import StudioCourseTest
-from ...pages.studio.auto_auth import AutoAuthPage
+from common.test.acceptance.tests.studio.base_studio_test import StudioCourseTest
+from common.test.acceptance.pages.studio.auto_auth import AutoAuthPage
 
-from ...pages.studio.users import CourseTeamPage
-from ...pages.studio.index import DashboardPage
+from common.test.acceptance.pages.studio.users import CourseTeamPage
+from common.test.acceptance.pages.studio.index import DashboardPage
 
 
-@flaky  # TODO fix this, see TNL-2667
-@attr('shard_2')
+@attr(shard=2)
 class CourseTeamPageTest(StudioCourseTest):
     """ As a course author, I want to be able to add others to my team """
     def _make_user(self, username):
@@ -34,9 +32,9 @@ class CourseTeamPageTest(StudioCourseTest):
         """
         super(CourseTeamPageTest, self).setUp(is_staff)
 
-        self.other_user = self._make_user('other')  # pylint:disable=attribute-defined-outside-init
-        self.dashboard_page = DashboardPage(self.browser)  # pylint:disable=attribute-defined-outside-init
-        self.page = CourseTeamPage(  # pylint:disable=attribute-defined-outside-init
+        self.other_user = self._make_user('other')
+        self.dashboard_page = DashboardPage(self.browser)
+        self.page = CourseTeamPage(
             self.browser, self.course_info['org'], self.course_info['number'], self.course_info['run']
         )
         self._go_to_course_team_page()
@@ -63,8 +61,8 @@ class CourseTeamPageTest(StudioCourseTest):
         def check_course_equality(course1, course2):
             """ Compares to course dictionaries using org, number and run as keys"""
             return (
-                course1['org'] == course2['org'] and
-                course1['number'] == course2['number'] and
+                course1['org'] == course2['display_organization'] and
+                course1['number'] == course2['display_coursenumber'] and
                 course1['run'] == course2['run']
             )
 
@@ -75,9 +73,15 @@ class CourseTeamPageTest(StudioCourseTest):
     def _assert_user_present(self, user, present=True):
         """ Checks if specified user present on Course Team page """
         if present:
-            self.assertIn(user.get('username'), self.page.usernames)
+            self.page.wait_for(
+                lambda: user.get('username') in self.page.usernames,
+                description="Wait for user to be present"
+            )
         else:
-            self.assertNotIn(user.get('username'), self.page.usernames)
+            self.page.wait_for(
+                lambda: user.get('username') not in self.page.usernames,
+                description="Wait for user to be absent"
+            )
 
     def _should_see_dialog(self, dialog_type, dialog_message):
         """ Asserts dialog with specified message is shown """

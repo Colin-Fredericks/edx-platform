@@ -149,6 +149,11 @@
         }
       }
 
+      // CASE: content is gated
+      &.is-gated {
+        @extend %bar-module-black;
+      }
+
       .bar-mod-content {
         border: 0;
         padding: ($baseline/2) ($baseline*0.75) ($baseline/4) ($baseline*0.75);
@@ -272,7 +277,7 @@
           @extend %t-copy-sub2;
           display: inline-block;
           margin: ($baseline/4) 0;
-          color: $gray-l2;
+          color: $gray-d1;
         }
       }
 

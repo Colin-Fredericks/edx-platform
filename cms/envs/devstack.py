@@ -2,6 +2,8 @@
 Specific overrides to the base prod settings to make development easier.
 """
 
+from os.path import abspath, dirname, join
+
 from .aws import *  # pylint: disable=wildcard-import, unused-wildcard-import
 
 # Don't use S3 in devstack, fall back to filesystem
@@ -10,7 +12,7 @@ MEDIA_ROOT = "/edx/var/edxapp/uploads"
 
 DEBUG = True
 USE_I18N = True
-TEMPLATE_DEBUG = DEBUG
+DEFAULT_TEMPLATE_ENGINE['OPTIONS']['debug'] = DEBUG
 HTTPS = 'off'
 
 ################################ LOGGERS ######################################
@@ -29,23 +31,30 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 ################################# LMS INTEGRATION #############################
 
 LMS_BASE = "localhost:8000"
+LMS_ROOT_URL = "http://{}".format(LMS_BASE)
 FEATURES['PREVIEW_LMS_BASE'] = "preview." + LMS_BASE
 
 ########################### PIPELINE #################################
 
 # Skip packaging and optimization in development
-STATICFILES_STORAGE = 'pipeline.storage.NonPackagingPipelineStorage'
+PIPELINE_ENABLED = False
+STATICFILES_STORAGE = 'openedx.core.storage.DevelopmentStorage'
 
 # Revert to the default set of finders as we don't want the production pipeline
 STATICFILES_FINDERS = [
-    'staticfiles.finders.FileSystemFinder',
-    'staticfiles.finders.AppDirectoriesFinder',
+    'openedx.core.djangoapps.theming.finders.ThemeFilesFinder',
+    'django.contrib.staticfiles.finders.FileSystemFinder',
+    'django.contrib.staticfiles.finders.AppDirectoriesFinder',
 ]
 
-############################# ADVANCED COMPONENTS #############################
+############################ PYFS XBLOCKS SERVICE #############################
+# Set configuration for Django pyfilesystem
 
-# Make it easier to test advanced components in local dev
-FEATURES['ALLOW_ALL_ADVANCED_COMPONENTS'] = True
+DJFS = {
+    'type': 'osfs',
+    'directory_root': 'cms/static/djpyfs',
+    'url_root': '/static/djpyfs',
+}
 
 ################################# CELERY ######################################
 
@@ -112,12 +121,19 @@ FEATURES['CERTIFICATES_HTML_VIEW'] = True
 # Whether to run django-require in debug mode.
 REQUIRE_DEBUG = DEBUG
 
+########################### OAUTH2 #################################
+OAUTH_OIDC_ISSUER = 'http://127.0.0.1:8000/oauth2'
+
+JWT_AUTH.update({
+    'JWT_SECRET_KEY': 'lms-secret',
+    'JWT_ISSUER': 'http://127.0.0.1:8000/oauth2',
+    'JWT_AUDIENCE': 'lms-key',
+})
+
 ###############################################################################
 # See if the developer has any local overrides.
-try:
-    from .private import *  # pylint: disable=import-error
-except ImportError:
-    pass
+if os.path.isfile(join(dirname(abspath(__file__)), 'private.py')):
+    from .private import *  # pylint: disable=import-error,wildcard-import
 
 #####################################################################
 # Lastly, run any migrations, if needed.

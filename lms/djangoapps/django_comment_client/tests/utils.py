@@ -7,11 +7,12 @@ from openedx.core.djangoapps.course_groups.tests.helpers import CohortFactory
 from django_comment_common.models import Role
 from django_comment_common.utils import seed_permissions_roles
 from student.tests.factories import CourseEnrollmentFactory, UserFactory
+from util.testing import UrlResetMixin
 from xmodule.modulestore.tests.factories import CourseFactory
 from xmodule.modulestore.tests.django_utils import SharedModuleStoreTestCase
 
 
-class CohortedTestCase(SharedModuleStoreTestCase):
+class CohortedTestCase(UrlResetMixin, SharedModuleStoreTestCase):
     """
     Sets up a course with a student, a moderator and their cohorts.
     """
@@ -34,19 +35,19 @@ class CohortedTestCase(SharedModuleStoreTestCase):
     def setUp(self):
         super(CohortedTestCase, self).setUp()
 
-        self.student_cohort = CohortFactory.create(
-            name="student_cohort",
-            course_id=self.course.id
-        )
-        self.moderator_cohort = CohortFactory.create(
-            name="moderator_cohort",
-            course_id=self.course.id
-        )
         seed_permissions_roles(self.course.id)
         self.student = UserFactory.create()
         self.moderator = UserFactory.create()
         CourseEnrollmentFactory(user=self.student, course_id=self.course.id)
         CourseEnrollmentFactory(user=self.moderator, course_id=self.course.id)
         self.moderator.roles.add(Role.objects.get(name="Moderator", course_id=self.course.id))
-        self.student_cohort.users.add(self.student)
-        self.moderator_cohort.users.add(self.moderator)
+        self.student_cohort = CohortFactory.create(
+            name="student_cohort",
+            course_id=self.course.id,
+            users=[self.student]
+        )
+        self.moderator_cohort = CohortFactory.create(
+            name="moderator_cohort",
+            course_id=self.course.id,
+            users=[self.moderator]
+        )

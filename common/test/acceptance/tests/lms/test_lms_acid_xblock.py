@@ -5,12 +5,12 @@ End-to-end tests for the LMS.
 
 from unittest import expectedFailure
 
-from ..helpers import UniqueCourseTest
-from ...pages.lms.auto_auth import AutoAuthPage
-from ...pages.lms.course_info import CourseInfoPage
-from ...pages.lms.tab_nav import TabNavPage
-from ...pages.xblock.acid import AcidView
-from ...fixtures.course import CourseFixture, XBlockFixtureDesc
+from common.test.acceptance.tests.helpers import UniqueCourseTest
+from common.test.acceptance.pages.lms.auto_auth import AutoAuthPage
+from common.test.acceptance.pages.lms.course_info import CourseInfoPage
+from common.test.acceptance.pages.lms.tab_nav import TabNavPage
+from common.test.acceptance.pages.xblock.acid import AcidView
+from common.test.acceptance.fixtures.course import CourseFixture, XBlockFixtureDesc
 
 
 class XBlockAcidBase(UniqueCourseTest):
@@ -75,7 +75,7 @@ class XBlockAcidNoChildTest(XBlockAcidBase):
         """
 
         self.course_info_page.visit()
-        self.tab_nav.go_to_tab('Courseware')
+        self.tab_nav.go_to_tab('Course')
 
         acid_block = AcidView(self.browser, '.xblock-student_view[data-block-type=acid]')
         self.validate_acid_block_view(acid_block)
@@ -119,7 +119,7 @@ class XBlockAcidChildTest(XBlockAcidBase):
         """
 
         self.course_info_page.visit()
-        self.tab_nav.go_to_tab('Courseware')
+        self.tab_nav.go_to_tab('Course')
 
         acid_parent_block = AcidView(self.browser, '.xblock-student_view[data-block-type=acid_parent]')
         self.validate_acid_parent_block_view(acid_parent_block)
@@ -159,7 +159,7 @@ class XBlockAcidAsideTest(XBlockAcidBase):
         """
 
         self.course_info_page.visit()
-        self.tab_nav.go_to_tab('Courseware')
+        self.tab_nav.go_to_tab('Course')
 
         acid_aside = AcidView(self.browser, '.xblock_asides-v1-student_view[data-block-type=acid_aside]')
         self.validate_acid_aside_view(acid_aside)

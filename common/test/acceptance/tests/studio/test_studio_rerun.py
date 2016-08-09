@@ -6,11 +6,11 @@ import random
 from bok_choy.promise import EmptyPromise
 from nose.tools import assert_in
 
-from ...pages.studio.index import DashboardPage
-from ...pages.studio.course_rerun import CourseRerunPage
-from ...pages.studio.overview import CourseOutlinePage
-from ...pages.lms.courseware import CoursewarePage
-from ...fixtures.course import XBlockFixtureDesc
+from common.test.acceptance.pages.studio.index import DashboardPage
+from common.test.acceptance.pages.studio.course_rerun import CourseRerunPage
+from common.test.acceptance.pages.studio.overview import CourseOutlinePage
+from common.test.acceptance.pages.lms.courseware import CoursewarePage
+from common.test.acceptance.fixtures.course import XBlockFixtureDesc
 
 from base_studio_test import StudioCourseTest
 
@@ -67,9 +67,10 @@ class CourseRerunTest(StudioCourseTest):
             Then I see one html component with the content 'Test Content'
         """
         course_info = (self.course_info['org'], self.course_info['number'], self.course_info['run'])
+        updated_course_info = course_info[0] + "+" + course_info[1] + "+" + course_info[2]
 
         self.dashboard_page.visit()
-        self.dashboard_page.create_rerun(self.course_info['display_name'])
+        self.dashboard_page.create_rerun(updated_course_info)
 
         rerun_page = CourseRerunPage(self.browser, *course_info)
         rerun_page.wait_for_page()

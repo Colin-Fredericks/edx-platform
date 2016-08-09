@@ -2,7 +2,7 @@
 Staff view of courseware
 """
 from bok_choy.page_object import PageObject
-from .courseware import CoursewarePage
+from common.test.acceptance.pages.lms.courseware import CoursewarePage
 
 
 class StaffPage(CoursewarePage):
@@ -30,7 +30,7 @@ class StaffPage(CoursewarePage):
         """
         Set the current view mode, e.g. "Staff", "Student" or a content group.
         """
-        self.q(css=self.VIEW_MODE_OPTIONS_CSS).filter(lambda el: el.text == view_mode).first.click()
+        self.q(css=self.VIEW_MODE_OPTIONS_CSS).filter(lambda el: el.text.strip() == view_mode).first.click()
         self.wait_for_ajax()
 
     def set_staff_view_mode_specific_student(self, username_or_email):

@@ -255,17 +255,17 @@ class StubLtiHandler(StubHttpRequestHandler):
         # Calculate and encode body hash. See http://oauth.googlecode.com/svn/spec/ext/body_hash/1.0/oauth-bodyhash.html
         sha1 = hashlib.sha1()
         sha1.update(body)
-        oauth_body_hash = unicode(base64.b64encode(sha1.digest()))  # pylint: disable=too-many-function-args
-        params = client.get_oauth_params(None)
-        params.append((u'oauth_body_hash', oauth_body_hash))
+        oauth_body_hash = unicode(base64.b64encode(sha1.digest()))
         mock_request = mock.Mock(
             uri=unicode(urllib.unquote(url)),
             headers=headers,
             body=u"",
             decoded_body=u"",
-            oauth_params=params,
             http_method=unicode(method),
         )
+        params = client.get_oauth_params(mock_request)
+        mock_request.oauth_params = params
+        mock_request.oauth_params.append((u'oauth_body_hash', oauth_body_hash))
         sig = client.get_oauth_signature(mock_request)
         mock_request.oauth_params.append((u'oauth_signature', sig))
         new_headers = parameters.prepare_headers(mock_request.oauth_params, headers, realm=None)

@@ -8,18 +8,17 @@ import json
 import logging
 import pytz
 
-from contextlib import contextmanager
 from copy import deepcopy
 from cStringIO import StringIO
 
+from django.conf import settings
 from django.core.urlresolvers import reverse
 from django.http import (
     HttpResponse,
     HttpResponseForbidden,
 )
 from django.contrib import messages
-from django.core.exceptions import ValidationError
-from django.core.validators import validate_email
+from django.db import transaction
 from django.http import Http404
 from django.shortcuts import redirect
 from django.utils.translation import ugettext as _
@@ -27,36 +26,44 @@ from django.views.decorators.cache import cache_control
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.contrib.auth.models import User
 
+from courseware.access import has_access
 from courseware.courses import get_course_by_id
 
 from courseware.field_overrides import disable_overrides
-from courseware.grades import iterate_grades_for
-from courseware.model_data import FieldDataCache
-from courseware.module_render import get_module_for_descriptor
 from edxmako.shortcuts import render_to_response
+from grades.course_grades import iterate_grades_for
 from opaque_keys.edx.keys import CourseKey
 from ccx_keys.locator import CCXLocator
-from student.roles import CourseCcxCoachRole  # pylint: disable=import-error
+from student.roles import CourseCcxCoachRole
 from student.models import CourseEnrollment
+from xmodule.modulestore.django import SignalHandler
 
-from instructor.offline_gradecalc import student_grades  # pylint: disable=import-error
-from instructor.views.api import _split_input_list  # pylint: disable=import-error
-from instructor.views.tools import get_student_from_identifier  # pylint: disable=import-error
+from instructor.views.api import _split_input_list
+from instructor.views.gradebook_api import get_grade_book_page
 from instructor.enrollment import (
     enroll_email,
-    unenroll_email,
     get_email_params,
 )
 
-from .models import CustomCourseForEdX
-from .overrides import (
-    clear_override_for_ccx,
+from lms.djangoapps.ccx.models import CustomCourseForEdX
+from lms.djangoapps.ccx.overrides import (
     get_override_for_ccx,
     override_field_for_ccx,
     clear_ccx_field_info_from_ccx_map,
     bulk_delete_ccx_override_fields,
 )
-
+from lms.djangoapps.ccx.utils import (
+    add_master_course_staff_to_ccx,
+    assign_coach_role_to_ccx,
+    ccx_course,
+    ccx_students_enrolling_center,
+    get_ccx_for_coach,
+    get_ccx_by_ccx_id,
+    get_ccx_creation_dict,
+    get_date,
+    parse_date,
+    prep_course_for_grading,
+)
 
 log = logging.getLogger(__name__)
 TODAY = datetime.datetime.today  # for patching in tests
@@ -78,23 +85,35 @@ def coach_dashboard(view):
         ccx = None
         if isinstance(course_key, CCXLocator):
             ccx_id = course_key.ccx
-            ccx = CustomCourseForEdX.objects.get(pk=ccx_id)
+            try:
+                ccx = CustomCourseForEdX.objects.get(pk=ccx_id)
+            except CustomCourseForEdX.DoesNotExist:
+                raise Http404
+
+        if ccx:
             course_key = ccx.course_id
-
-        role = CourseCcxCoachRole(course_key)
-        if not role.has_user(request.user):
-            return HttpResponseForbidden(
-                _('You must be a CCX Coach to access this view.'))
-
         course = get_course_by_id(course_key, depth=None)
 
-        # if there is a ccx, we must validate that it is the ccx for this coach
-        if ccx is not None:
-            coach_ccx = get_ccx_for_coach(course, request.user)
-            if coach_ccx is None or coach_ccx.id != ccx.id:
-                return HttpResponseForbidden(
-                    _('You must be the coach for this ccx to access this view')
-                )
+        if not course.enable_ccx:
+            raise Http404
+        else:
+            is_staff = has_access(request.user, 'staff', course)
+            is_instructor = has_access(request.user, 'instructor', course)
+
+            if is_staff or is_instructor:
+                # if user is staff or instructor then he can view ccx coach dashboard.
+                return view(request, course, ccx)
+            else:
+                # if there is a ccx, we must validate that it is the ccx for this coach
+                role = CourseCcxCoachRole(course_key)
+                if not role.has_user(request.user):
+                    return HttpResponseForbidden(_('You must be a CCX Coach to access this view.'))
+                elif ccx is not None:
+                    coach_ccx = get_ccx_by_ccx_id(course, request.user, ccx.id)
+                    if coach_ccx is None:
+                        return HttpResponseForbidden(
+                            _('You must be the coach for this ccx to access this view')
+                        )
 
         return view(request, course, ccx)
     return wrapper
@@ -114,7 +133,7 @@ def dashboard(request, course, ccx=None):
         if ccx:
             url = reverse(
                 'ccx_coach_dashboard',
-                kwargs={'course_id': CCXLocator.from_course_locator(course.id, ccx.id)}
+                kwargs={'course_id': CCXLocator.from_course_locator(course.id, unicode(ccx.id))}
             )
             return redirect(url)
 
@@ -122,9 +141,11 @@ def dashboard(request, course, ccx=None):
         'course': course,
         'ccx': ccx,
     }
+    context.update(get_ccx_creation_dict(course))
 
     if ccx:
-        ccx_locator = CCXLocator.from_course_locator(course.id, ccx.id)
+        ccx_locator = CCXLocator.from_course_locator(course.id, unicode(ccx.id))
+
         schedule = get_ccx_schedule(course, ccx)
         grading_policy = get_override_for_ccx(
             ccx, course, 'grading_policy', course.grading_policy)
@@ -139,6 +160,10 @@ def dashboard(request, course, ccx=None):
         context['grading_policy'] = json.dumps(grading_policy, indent=4)
         context['grading_policy_url'] = reverse(
             'ccx_set_grading_policy', kwargs={'course_id': ccx_locator})
+
+        with ccx_course(ccx_locator) as course:
+            context['course'] = course
+
     else:
         context['create_ccx_url'] = reverse(
             'create_ccx', kwargs={'course_id': course.id})
@@ -153,6 +178,13 @@ def create_ccx(request, course, ccx=None):
     Create a new CCX
     """
     name = request.POST.get('name')
+
+    if hasattr(course, 'ccx_connector') and course.ccx_connector:
+        # if ccx connector url is set in course settings then inform user that he can
+        # only create ccx by using ccx connector url.
+        context = get_ccx_creation_dict(course)
+        messages.error(request, context['use_ccx_con_error_message'])
+        return render_to_response('ccx/coach_dashboard.html', context)
 
     # prevent CCX objects from being created for deprecated course ids.
     if course.id.deprecated:
@@ -174,6 +206,9 @@ def create_ccx(request, course, ccx=None):
     override_field_for_ccx(ccx, course, 'start', start)
     override_field_for_ccx(ccx, course, 'due', None)
 
+    # Enforce a static limit for the maximum amount of students that can be enrolled
+    override_field_for_ccx(ccx, course, 'max_student_enrollments_allowed', settings.CCX_MAX_STUDENTS_ALLOWED)
+
     # Hide anything that can show up in the schedule
     hidden = 'visible_to_staff_only'
     for chapter in course.get_children():
@@ -183,8 +218,31 @@ def create_ccx(request, course, ccx=None):
             for vertical in sequential.get_children():
                 override_field_for_ccx(ccx, vertical, hidden, True)
 
-    ccx_id = CCXLocator.from_course_locator(course.id, ccx.id)  # pylint: disable=no-member
+    ccx_id = CCXLocator.from_course_locator(course.id, unicode(ccx.id))
+
     url = reverse('ccx_coach_dashboard', kwargs={'course_id': ccx_id})
+
+    # Enroll the coach in the course
+    email_params = get_email_params(course, auto_enroll=True, course_key=ccx_id, display_name=ccx.display_name)
+    enroll_email(
+        course_id=ccx_id,
+        student_email=request.user.email,
+        auto_enroll=True,
+        email_students=True,
+        email_params=email_params,
+    )
+
+    assign_coach_role_to_ccx(ccx_id, request.user, course.id)
+    add_master_course_staff_to_ccx(course, ccx_id, ccx.display_name)
+
+    # using CCX object as sender here.
+    responses = SignalHandler.course_published.send(
+        sender=ccx,
+        course_key=CCXLocator.from_course_locator(course.id, unicode(ccx.id))
+    )
+    for rec, response in responses:
+        log.info('Signal fired when course is published. Receiver: %s. Response: %s', rec, response)
+
     return redirect(url)
 
 
@@ -224,10 +282,16 @@ def save_ccx(request, course, ccx=None):
                 ccx_ids_to_delete.append(get_override_for_ccx(ccx, block, 'start_id'))
                 clear_ccx_field_info_from_ccx_map(ccx, block, 'start')
 
-            due = parse_date(unit['due'])
-            if due:
-                override_field_for_ccx(ccx, block, 'due', due)
+            # Only subsection (aka sequential) and unit (aka vertical) have due dates.
+            if 'due' in unit:  # checking that the key (due) exist in dict (unit).
+                due = parse_date(unit['due'])
+                if due:
+                    override_field_for_ccx(ccx, block, 'due', due)
+                else:
+                    ccx_ids_to_delete.append(get_override_for_ccx(ccx, block, 'due_id'))
+                    clear_ccx_field_info_from_ccx_map(ccx, block, 'due')
             else:
+                # In case of section aka chapter we do not have due date.
                 ccx_ids_to_delete.append(get_override_for_ccx(ccx, block, 'due_id'))
                 clear_ccx_field_info_from_ccx_map(ccx, block, 'due')
 
@@ -235,6 +299,16 @@ def save_ccx(request, course, ccx=None):
                 graded[block.format] = graded.get(block.format, 0) + 1
 
             children = unit.get('children', None)
+            # For a vertical, override start and due dates of all its problems.
+            if unit.get('category', None) == u'vertical':
+                for component in block.get_children():
+                    # override start and due date of problem (Copy dates of vertical into problems)
+                    if start:
+                        override_field_for_ccx(ccx, component, 'start', start)
+
+                    if due:
+                        override_field_for_ccx(ccx, component, 'due', due)
+
             if children:
                 override_fields(block, children, graded, earliest, ccx_ids_to_delete)
         return earliest, ccx_ids_to_delete
@@ -254,11 +328,19 @@ def save_ccx(request, course, ccx=None):
     grader = policy['GRADER']
     for section in grader:
         count = graded.get(section.get('type'), 0)
-        if count < section['min_count']:
+        if count < section.get('min_count', 0):
             changed = True
             section['min_count'] = count
     if changed:
         override_field_for_ccx(ccx, course, 'grading_policy', policy)
+
+    # using CCX object as sender here.
+    responses = SignalHandler.course_published.send(
+        sender=ccx,
+        course_key=CCXLocator.from_course_locator(course.id, unicode(ccx.id))
+    )
+    for rec, response in responses:
+        log.info('Signal fired when course is published. Receiver: %s. Response: %s', rec, response)
 
     return HttpResponse(
         json.dumps({
@@ -281,61 +363,19 @@ def set_grading_policy(request, course, ccx=None):
     override_field_for_ccx(
         ccx, course, 'grading_policy', json.loads(request.POST['policy']))
 
+    # using CCX object as sender here.
+    responses = SignalHandler.course_published.send(
+        sender=ccx,
+        course_key=CCXLocator.from_course_locator(course.id, unicode(ccx.id))
+    )
+    for rec, response in responses:
+        log.info('Signal fired when course is published. Receiver: %s. Response: %s', rec, response)
+
     url = reverse(
         'ccx_coach_dashboard',
-        kwargs={'course_id': CCXLocator.from_course_locator(course.id, ccx.id)}
+        kwargs={'course_id': CCXLocator.from_course_locator(course.id, unicode(ccx.id))}
     )
     return redirect(url)
-
-
-def validate_date(year, month, day, hour, minute):
-    """
-    avoid corrupting db if bad dates come in
-    """
-    valid = True
-    if year < 0:
-        valid = False
-    if month < 1 or month > 12:
-        valid = False
-    if day < 1 or day > 31:
-        valid = False
-    if hour < 0 or hour > 23:
-        valid = False
-    if minute < 0 or minute > 59:
-        valid = False
-    return valid
-
-
-def parse_date(datestring):
-    """
-    Generate a UTC datetime.datetime object from a string of the form
-    'YYYY-MM-DD HH:MM'.  If string is empty or `None`, returns `None`.
-    """
-    if datestring:
-        date, time = datestring.split(' ')
-        year, month, day = map(int, date.split('-'))
-        hour, minute = map(int, time.split(':'))
-        if validate_date(year, month, day, hour, minute):
-            return datetime.datetime(
-                year, month, day, hour, minute, tzinfo=pytz.UTC)
-
-    return None
-
-
-def get_ccx_for_coach(course, coach):
-    """
-    Looks to see if user is coach of a CCX for this course.  Returns the CCX or
-    None.
-    """
-    ccxs = CustomCourseForEdX.objects.filter(
-        course_id=course.id,
-        coach=coach
-    )
-    # XXX: In the future, it would be nice to support more than one ccx per
-    # coach per course.  This is a place where that might happen.
-    if ccxs.exists():
-        return ccxs[0]
-    return None
 
 
 def get_ccx_schedule(course, ccx):
@@ -347,25 +387,52 @@ def get_ccx_schedule(course, ccx):
         Recursive generator function which yields CCX schedule nodes.
         We convert dates to string to get them ready for use by the js date
         widgets, which use text inputs.
+        Visits students visible nodes only; nodes children of hidden ones
+        are skipped as well.
+
+        Dates:
+        Only start date is applicable to a section. If ccx coach did not override start date then
+        getting it from the master course.
+        Both start and due dates are applicable to a subsection (aka sequential). If ccx coach did not override
+        these dates then getting these dates from corresponding subsection in master course.
+        Unit inherits start date and due date from its subsection. If ccx coach did not override these dates
+        then getting them from corresponding subsection in master course.
         """
         for child in node.get_children():
-            start = get_override_for_ccx(ccx, child, 'start', None)
-            if start:
-                start = str(start)[:-9]
-            due = get_override_for_ccx(ccx, child, 'due', None)
-            if due:
-                due = str(due)[:-9]
+            # in case the children are visible to staff only, skip them
+            if child.visible_to_staff_only:
+                continue
+
             hidden = get_override_for_ccx(
                 ccx, child, 'visible_to_staff_only',
                 child.visible_to_staff_only)
-            visited = {
-                'location': str(child.location),
-                'display_name': child.display_name,
-                'category': child.category,
-                'start': start,
-                'due': due,
-                'hidden': hidden,
-            }
+
+            start = get_date(ccx, child, 'start')
+            if depth > 1:
+                # Subsection has both start and due dates and unit inherit dates from their subsections
+                if depth == 2:
+                    due = get_date(ccx, child, 'due')
+                elif depth == 3:
+                    # Get start and due date of subsection in case unit has not override dates.
+                    due = get_date(ccx, child, 'due', node)
+                    start = get_date(ccx, child, 'start', node)
+
+                visited = {
+                    'location': str(child.location),
+                    'display_name': child.display_name,
+                    'category': child.category,
+                    'start': start,
+                    'due': due,
+                    'hidden': hidden,
+                }
+            else:
+                visited = {
+                    'location': str(child.location),
+                    'display_name': child.display_name,
+                    'category': child.category,
+                    'start': start,
+                    'hidden': hidden,
+                }
             if depth < 3:
                 children = tuple(visit(child, depth + 1))
                 if children:
@@ -390,7 +457,7 @@ def ccx_schedule(request, course, ccx=None):  # pylint: disable=unused-argument
 
     schedule = get_ccx_schedule(course, ccx)
     json_schedule = json.dumps(schedule, indent=4)
-    return HttpResponse(json_schedule, mimetype='application/json')
+    return HttpResponse(json_schedule, content_type='application/json')
 
 
 @ensure_csrf_cookie
@@ -406,125 +473,44 @@ def ccx_invite(request, course, ccx=None):
     action = request.POST.get('enrollment-button')
     identifiers_raw = request.POST.get('student-ids')
     identifiers = _split_input_list(identifiers_raw)
-    auto_enroll = True if 'auto-enroll' in request.POST else False
-    email_students = True if 'email-students' in request.POST else False
-    for identifier in identifiers:
-        user = None
-        email = None
-        try:
-            user = get_student_from_identifier(identifier)
-        except User.DoesNotExist:
-            email = identifier
-        else:
-            email = user.email
-        try:
-            validate_email(email)
-            course_key = CCXLocator.from_course_locator(course.id, ccx.id)
-            email_params = get_email_params(course, auto_enroll, course_key=course_key, display_name=ccx.display_name)
-            if action == 'Enroll':
-                enroll_email(
-                    course_key,
-                    email,
-                    auto_enroll=auto_enroll,
-                    email_students=email_students,
-                    email_params=email_params
-                )
-            if action == "Unenroll":
-                unenroll_email(course_key, email, email_students=email_students, email_params=email_params)
-        except ValidationError:
-            log.info('Invalid user name or email when trying to invite students: %s', email)
-    url = reverse(
-        'ccx_coach_dashboard',
-        kwargs={'course_id': CCXLocator.from_course_locator(course.id, ccx.id)}
-    )
+    email_students = 'email-students' in request.POST
+    course_key = CCXLocator.from_course_locator(course.id, unicode(ccx.id))
+    email_params = get_email_params(course, auto_enroll=True, course_key=course_key, display_name=ccx.display_name)
+
+    ccx_students_enrolling_center(action, identifiers, email_students, course_key, email_params, ccx.coach)
+
+    url = reverse('ccx_coach_dashboard', kwargs={'course_id': course_key})
     return redirect(url)
-
-
-def validate_student_email(email):
-    """
-    validate student's email id
-    """
-    error_message = None
-    try:
-        validate_email(email)
-    except ValidationError:
-        log.info(
-            'Invalid user name or email when trying to enroll student: %s',
-            email
-        )
-        if email:
-            error_message = _(
-                'Could not find a user with name or email "{email}" '
-            ).format(email=email)
-        else:
-            error_message = _(
-                'Please enter a valid username or email.'
-            )
-
-    return error_message
 
 
 @ensure_csrf_cookie
 @cache_control(no_cache=True, no_store=True, must_revalidate=True)
 @coach_dashboard
 def ccx_student_management(request, course, ccx=None):
-    """Manage the enrollment of individual students in a CCX
+    """
+    Manage the enrollment of individual students in a CCX
     """
     if not ccx:
         raise Http404
 
     action = request.POST.get('student-action', None)
     student_id = request.POST.get('student-id', '')
-    user = email = None
-    error_message = ""
-    course_key = CCXLocator.from_course_locator(course.id, ccx.id)
-    try:
-        user = get_student_from_identifier(student_id)
-    except User.DoesNotExist:
-        email = student_id
-        error_message = validate_student_email(email)
-        if email and not error_message:
-            error_message = _(
-                'Could not find a user with name or email "{email}" '
-            ).format(email=email)
-    else:
-        email = user.email
-        error_message = validate_student_email(email)
+    email_students = 'email-students' in request.POST
+    identifiers = [student_id]
+    course_key = CCXLocator.from_course_locator(course.id, unicode(ccx.id))
+    email_params = get_email_params(course, auto_enroll=True, course_key=course_key, display_name=ccx.display_name)
 
-    if error_message is None:
-        if action == 'add':
-            # by decree, no emails sent to students added this way
-            # by decree, any students added this way are auto_enrolled
-            enroll_email(course_key, email, auto_enroll=True, email_students=False)
-        elif action == 'revoke':
-            unenroll_email(course_key, email, email_students=False)
-    else:
+    errors = ccx_students_enrolling_center(action, identifiers, email_students, course_key, email_params, ccx.coach)
+
+    for error_message in errors:
         messages.error(request, error_message)
 
     url = reverse('ccx_coach_dashboard', kwargs={'course_id': course_key})
     return redirect(url)
 
 
-@contextmanager
-def ccx_course(ccx_locator):
-    """Create a context in which the course identified by course_locator exists
-    """
-    course = get_course_by_id(ccx_locator)
-    yield course
-
-
-def prep_course_for_grading(course, request):
-    """Set up course module for overrides to function properly"""
-    field_data_cache = FieldDataCache.cache_for_descriptor_descendents(
-        course.id, request.user, course, depth=2)
-    course = get_module_for_descriptor(
-        request.user, request, course, field_data_cache, course.id, course=course
-    )
-
-    course._field_data_cache = {}  # pylint: disable=protected-access
-    course.set_grading_policy(course.grading_policy)
-
-
+# Grades can potentially be written - if so, let grading manage the transaction.
+@transaction.non_atomic_requests
 @cache_control(no_cache=True, no_store=True, must_revalidate=True)
 @coach_dashboard
 def ccx_gradebook(request, course, ccx=None):
@@ -534,27 +520,14 @@ def ccx_gradebook(request, course, ccx=None):
     if not ccx:
         raise Http404
 
-    ccx_key = CCXLocator.from_course_locator(course.id, ccx.id)
+    ccx_key = CCXLocator.from_course_locator(course.id, unicode(ccx.id))
     with ccx_course(ccx_key) as course:
         prep_course_for_grading(course, request)
-
-        enrolled_students = User.objects.filter(
-            courseenrollment__course_id=ccx_key,
-            courseenrollment__is_active=1
-        ).order_by('username').select_related("profile")
-
-        student_info = [
-            {
-                'username': student.username,
-                'id': student.id,
-                'email': student.email,
-                'grade_summary': student_grades(student, request, course),
-                'realname': student.profile.name,
-            }
-            for student in enrolled_students
-        ]
+        student_info, page = get_grade_book_page(request, course, course_key=ccx_key)
 
         return render_to_response('courseware/gradebook.html', {
+            'page': page,
+            'page_url': reverse('ccx_gradebook', kwargs={'course_id': ccx_key}),
             'students': student_info,
             'course': course,
             'course_id': course.id,
@@ -564,6 +537,8 @@ def ccx_gradebook(request, course, ccx=None):
         })
 
 
+# Grades can potentially be written - if so, let grading manage the transaction.
+@transaction.non_atomic_requests
 @cache_control(no_cache=True, no_store=True, must_revalidate=True)
 @coach_dashboard
 def ccx_grades_csv(request, course, ccx=None):
@@ -573,7 +548,7 @@ def ccx_grades_csv(request, course, ccx=None):
     if not ccx:
         raise Http404
 
-    ccx_key = CCXLocator.from_course_locator(course.id, ccx.id)
+    ccx_key = CCXLocator.from_course_locator(course.id, unicode(ccx.id))
     with ccx_course(ccx_key) as course:
         prep_course_for_grading(course, request)
 
@@ -611,4 +586,7 @@ def ccx_grades_csv(request, course, ccx=None):
         for row in rows:
             writer.writerow(row)
 
-        return HttpResponse(buf.getvalue(), content_type='text/plain')
+        response = HttpResponse(buf.getvalue(), content_type='text/csv')
+        response['Content-Disposition'] = 'attachment'
+
+        return response

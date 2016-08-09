@@ -7,7 +7,7 @@ from lazy.lazy import lazy
 import time
 from datetime import datetime
 from dateutil.tz import tzutc
-from mock import patch, call
+from mock import patch
 from pytz import UTC
 from uuid import uuid4
 from unittest import skip
@@ -15,22 +15,23 @@ from unittest import skip
 from django.conf import settings
 
 from course_modes.models import CourseMode
+from openedx.core.djangoapps.models.course_details import CourseDetails
 from xmodule.library_tools import normalize_key_for_search
 from xmodule.modulestore import ModuleStoreEnum
-from xmodule.modulestore.django import SignalHandler
+from xmodule.modulestore.django import SignalHandler, modulestore
 from xmodule.modulestore.edit_info import EditInfoMixin
-from xmodule.modulestore.exceptions import ItemNotFoundError
 from xmodule.modulestore.inheritance import InheritanceMixin
 from xmodule.modulestore.mixed import MixedModuleStore
 from xmodule.modulestore.tests.django_utils import (
-    ModuleStoreTestCase,
     TEST_DATA_MONGO_MODULESTORE,
-    TEST_DATA_SPLIT_MODULESTORE
-)
+    TEST_DATA_SPLIT_MODULESTORE,
+    SharedModuleStoreTestCase)
 from xmodule.modulestore.tests.factories import CourseFactory, ItemFactory, LibraryFactory
 from xmodule.modulestore.tests.mongo_connection import MONGO_PORT_NUM, MONGO_HOST
-from xmodule.modulestore.tests.test_cross_modulestore_import_export import MongoContentstoreBuilder
-from xmodule.modulestore.tests.utils import create_modulestore_instance, LocationMixin, MixedSplitTestCase
+from xmodule.modulestore.tests.utils import (
+    create_modulestore_instance, LocationMixin,
+    MixedSplitTestCase, MongoContentstoreBuilder
+)
 from xmodule.tests import DATA_DIR
 from xmodule.x_module import XModuleMixin
 from xmodule.partitions.partitions import UserPartition
@@ -123,15 +124,6 @@ class MixedWithOptionsTestCase(MixedSplitTestCase):
                 'DOC_STORE_CONFIG': DOC_STORE_CONFIG,
                 'OPTIONS': modulestore_options
             },
-            {
-                'NAME': 'xml',
-                'ENGINE': 'xmodule.modulestore.xml.XMLModuleStore',
-                'OPTIONS': {
-                    'data_dir': DATA_DIR,
-                    'default_class': 'xmodule.hidden_module.HiddenDescriptor',
-                    'xblock_mixins': modulestore_options['xblock_mixins'],
-                }
-            },
         ],
         'xblock_mixins': modulestore_options['xblock_mixins'],
     }
@@ -189,26 +181,6 @@ class MixedWithOptionsTestCase(MixedSplitTestCase):
         """ update the item at the given location """
         with store.branch_setting(ModuleStoreEnum.Branch.draft_preferred):
             store.update_item(item, ModuleStoreEnum.UserID.test)
-
-    def update_about_item(self, store, about_key, data):
-        """
-        Update the about item with the new data blob. If data is None, then
-        delete the about item.
-        """
-        temploc = self.course.id.make_usage_key('about', about_key)
-        if data is None:
-            try:
-                self.delete_item(store, temploc)
-            # Ignore an attempt to delete an item that doesn't exist
-            except ValueError:
-                pass
-        else:
-            try:
-                about_item = store.get_item(temploc)
-            except ItemNotFoundError:
-                about_item = store.create_xblock(self.course.runtime, self.course.id, 'about', about_key)
-            about_item.data = data
-            store.update_item(about_item, ModuleStoreEnum.UserID.test, allow_not_found=True)
 
 
 @ddt.ddt
@@ -332,6 +304,25 @@ class TestCoursewareSearchIndexer(MixedWithOptionsTestCase):
         self.reindex_course(store)
         response = self.search()
         self.assertEqual(response["total"], 5)
+
+    def _test_delete_course_from_search_index_after_course_deletion(self, store):  # pylint: disable=invalid-name
+        """
+        Test that course will also be delete from search_index after course deletion.
+        """
+        self.DOCUMENT_TYPE = 'course_info'  # pylint: disable=invalid-name
+        response = self.search()
+        self.assertEqual(response["total"], 0)
+
+        # index the course in search_index
+        self.reindex_course(store)
+        response = self.search()
+        self.assertEqual(response["total"], 1)
+
+        # delete the course and look course in search_index
+        modulestore().delete_course(self.course.id, self.user_id)
+        self.assertIsNone(modulestore().get_course(self.course.id))
+        response = self.search()
+        self.assertEqual(response["total"], 0)
 
     def _test_deleting_item(self, store):
         """ test deleting an item """
@@ -466,7 +457,9 @@ class TestCoursewareSearchIndexer(MixedWithOptionsTestCase):
     def _test_course_about_store_index(self, store):
         """ Test that informational properties in the about store end up in the course_info index """
         short_description = "Not just anybody"
-        self.update_about_item(store, "short_description", short_description)
+        CourseDetails.update_about_item(
+            self.course, "short_description", short_description, ModuleStoreEnum.UserID.test, store
+        )
         self.reindex_course(store)
         response = self.searcher.search(
             doc_type=CourseAboutSearchIndexer.DISCOVERY_DOCUMENT_TYPE,
@@ -486,7 +479,8 @@ class TestCoursewareSearchIndexer(MixedWithOptionsTestCase):
         verified_mode = CourseMode(
             course_id=unicode(self.course.id),
             mode_slug=CourseMode.VERIFIED,
-            mode_display_name=CourseMode.VERIFIED
+            mode_display_name=CourseMode.VERIFIED,
+            min_price=1
         )
         verified_mode.save()
         self.reindex_course(store)
@@ -602,6 +596,11 @@ class TestCoursewareSearchIndexer(MixedWithOptionsTestCase):
     def test_course_location_null(self, store_type):
         self._perform_test_using_store(store_type, self._test_course_location_null)
 
+    @ddt.data(*WORKS_WITH_STORES)
+    def test_delete_course_from_search_index_after_course_deletion(self, store_type):
+        """ Test for removing course from CourseAboutSearchIndexer """
+        self._perform_test_using_store(store_type, self._test_delete_course_from_search_index_after_course_deletion)
+
 
 @patch('django.conf.settings.SEARCH_ENGINE', 'search.tests.utils.ForceRefreshElasticSearchEngine')
 @ddt.ddt
@@ -683,7 +682,7 @@ class TestLargeCourseDeletions(MixedWithOptionsTestCase):
         self._perform_test_using_store(store_type, self._test_large_course_deletion)
 
 
-class TestTaskExecution(ModuleStoreTestCase):
+class TestTaskExecution(SharedModuleStoreTestCase):
     """
     Set of tests to ensure that the task code will do the right thing when
     executed directly. The test course and library gets created without the listeners
@@ -691,52 +690,53 @@ class TestTaskExecution(ModuleStoreTestCase):
     executed, it is done as expected.
     """
 
-    def setUp(self):
-        super(TestTaskExecution, self).setUp()
+    @classmethod
+    def setUpClass(cls):
+        super(TestTaskExecution, cls).setUpClass()
         SignalHandler.course_published.disconnect(listen_for_course_publish)
         SignalHandler.library_updated.disconnect(listen_for_library_update)
-        self.course = CourseFactory.create(start=datetime(2015, 3, 1, tzinfo=UTC))
+        cls.course = CourseFactory.create(start=datetime(2015, 3, 1, tzinfo=UTC))
 
-        self.chapter = ItemFactory.create(
-            parent_location=self.course.location,
+        cls.chapter = ItemFactory.create(
+            parent_location=cls.course.location,
             category='chapter',
             display_name="Week 1",
             publish_item=True,
             start=datetime(2015, 3, 1, tzinfo=UTC),
         )
-        self.sequential = ItemFactory.create(
-            parent_location=self.chapter.location,
+        cls.sequential = ItemFactory.create(
+            parent_location=cls.chapter.location,
             category='sequential',
             display_name="Lesson 1",
             publish_item=True,
             start=datetime(2015, 3, 1, tzinfo=UTC),
         )
-        self.vertical = ItemFactory.create(
-            parent_location=self.sequential.location,
+        cls.vertical = ItemFactory.create(
+            parent_location=cls.sequential.location,
             category='vertical',
             display_name='Subsection 1',
             publish_item=True,
             start=datetime(2015, 4, 1, tzinfo=UTC),
         )
         # unspecified start - should inherit from container
-        self.html_unit = ItemFactory.create(
-            parent_location=self.vertical.location,
+        cls.html_unit = ItemFactory.create(
+            parent_location=cls.vertical.location,
             category="html",
             display_name="Html Content",
             publish_item=False,
         )
 
-        self.library = LibraryFactory.create()
+        cls.library = LibraryFactory.create()
 
-        self.library_block1 = ItemFactory.create(
-            parent_location=self.library.location,
+        cls.library_block1 = ItemFactory.create(
+            parent_location=cls.library.location,
             category="html",
             display_name="Html Content",
             publish_item=False,
         )
 
-        self.library_block2 = ItemFactory.create(
-            parent_location=self.library.location,
+        cls.library_block2 = ItemFactory.create(
+            parent_location=cls.library.location,
             category="html",
             display_name="Html Content 2",
             publish_item=False,

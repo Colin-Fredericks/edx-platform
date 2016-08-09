@@ -14,8 +14,8 @@ from xmodule.modulestore.tests.django_utils import SharedModuleStoreTestCase
 from xmodule.modulestore.tests.factories import CourseFactory
 
 
-@attr('shard_1')
-@patch.dict(settings.FEATURES, {'ENABLE_PROCTORED_EXAMS': True})
+@attr(shard=1)
+@patch.dict(settings.FEATURES, {'ENABLE_SPECIAL_EXAMS': True})
 class TestProctoringDashboardViews(SharedModuleStoreTestCase):
     """
     Check for Proctoring view on the new instructor dashboard
@@ -27,7 +27,7 @@ class TestProctoringDashboardViews(SharedModuleStoreTestCase):
 
         # URL for instructor dash
         cls.url = reverse('instructor_dashboard', kwargs={'course_id': cls.course.id.to_deprecated_string()})
-        cls.proctoring_link = '<a href="" data-section="proctoring">Proctoring</a>'
+        cls.proctoring_link = '<a href="" data-section="special_exams">Special Exams</a>'
 
     def setUp(self):
         super(TestProctoringDashboardViews, self).setUp()
@@ -46,8 +46,8 @@ class TestProctoringDashboardViews(SharedModuleStoreTestCase):
         self.instructor.save()
 
         response = self.client.get(self.url)
-        self.assertTrue(self.proctoring_link in response.content)
-        self.assertTrue('Allowance Section' in response.content)
+        self.assertIn(self.proctoring_link, response.content)
+        self.assertIn('Allowance Section', response.content)
 
     def test_no_tab_non_global_staff(self):
         """
@@ -58,18 +58,18 @@ class TestProctoringDashboardViews(SharedModuleStoreTestCase):
         self.instructor.save()
 
         response = self.client.get(self.url)
-        self.assertFalse(self.proctoring_link in response.content)
-        self.assertFalse('Allowance Section' in response.content)
+        self.assertNotIn(self.proctoring_link, response.content)
+        self.assertNotIn('Allowance Section', response.content)
 
-    @patch.dict(settings.FEATURES, {'ENABLE_PROCTORED_EXAMS': False})
+    @patch.dict(settings.FEATURES, {'ENABLE_SPECIAL_EXAMS': False})
     def test_no_tab_flag_unset(self):
         """
-        Test Pass Proctoring Tab is not in the Instructor Dashboard
-        if the feature flag 'ENABLE_PROCTORED_EXAMS' is unset.
+        Special Exams tab will not be visible if
+        the user is not a staff member.
         """
         self.instructor.is_staff = True
         self.instructor.save()
 
         response = self.client.get(self.url)
-        self.assertFalse(self.proctoring_link in response.content)
-        self.assertFalse('Allowance Section' in response.content)
+        self.assertNotIn(self.proctoring_link, response.content)
+        self.assertNotIn('Allowance Section', response.content)

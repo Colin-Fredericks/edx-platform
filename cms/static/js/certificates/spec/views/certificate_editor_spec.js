@@ -1,6 +1,6 @@
 // Jasmine Test Suite: Certifiate Editor View
 
-define([ // jshint ignore:line
+define([
     'underscore',
     'js/models/course',
     'js/certificates/models/certificate',
@@ -8,7 +8,7 @@ define([ // jshint ignore:line
     'js/certificates/collections/certificates',
     'js/certificates/views/certificate_editor',
     'common/js/components/views/feedback_notification',
-    'common/js/spec_helpers/ajax_helpers',
+    'edx-ui-toolkit/js/utils/spec-helpers/ajax-helpers',
     'common/js/spec_helpers/template_helpers',
     'common/js/spec_helpers/view_helpers',
     'js/spec_helpers/validation_helpers',
@@ -18,7 +18,7 @@ function(_, Course, CertificateModel, SignatoryModel, CertificatesCollection, Ce
          Notification, AjaxHelpers, TemplateHelpers, ViewHelpers, ValidationHelpers, CustomMatchers) {
     'use strict';
 
-    var MAX_SIGNATORIES = 4;
+    var MAX_SIGNATORIES_LIMIT = 10;
     var SELECTORS = {
         detailsView: '.certificate-details',
         editView: '.certificate-edit',
@@ -76,23 +76,6 @@ function(_, Course, CertificateModel, SignatoryModel, CertificatesCollection, Ce
         AjaxHelpers.respondWithJson(requests, {asset: {url: file_path}});
     };
 
-    beforeEach(function() {
-        window.course = new Course({
-            id: '5',
-            name: 'Course Name',
-            url_name: 'course_name',
-            org: 'course_org',
-            num: 'course_num',
-            revision: 'course_rev'
-        });
-        window.CMS.User = {isGlobalStaff: true};
-    });
-
-    afterEach(function() {
-        delete window.course;
-        delete window.CMS.User;
-    });
-
     describe('Certificate editor view', function() {
         var setValuesToInputs = function (view, values) {
             _.each(values, function (value, selector) {
@@ -109,6 +92,16 @@ function(_, Course, CertificateModel, SignatoryModel, CertificatesCollection, Ce
         beforeEach(function() {
             TemplateHelpers.installTemplates(['certificate-editor', 'signatory-editor'], true);
 
+            window.course = new Course({
+                id: '5',
+                name: 'Course Name',
+                url_name: 'course_name',
+                org: 'course_org',
+                num: 'course_num',
+                revision: 'course_rev'
+            });
+            window.CMS.User = {isGlobalStaff: true};
+
             this.newModelOptions = {add: true};
             this.model = new CertificateModel({
                 name: 'Test Name',
@@ -122,10 +115,16 @@ function(_, Course, CertificateModel, SignatoryModel, CertificatesCollection, Ce
             });
             this.model.set('id', 0);
             this.view = new CertificateEditorView({
-                model: this.model
+                model: this.model,
+                max_signatories_limit: MAX_SIGNATORIES_LIMIT
             });
             appendSetFixtures(this.view.render().el);
-            CustomMatchers(this); // jshint ignore:line
+            CustomMatchers();
+        });
+
+        afterEach(function() {
+            delete window.course;
+            delete window.CMS.User;
         });
 
         describe('Basic', function () {
@@ -198,8 +197,8 @@ function(_, Course, CertificateModel, SignatoryModel, CertificatesCollection, Ce
                 expect(this.collection.length).toBe(1);
             });
 
-            it('user can only add signatories up to max 4', function() {
-                for(var i = 1; i < MAX_SIGNATORIES ; i++) {
+            it('user can only add signatories up to limit', function() {
+                for(var i = 1; i < MAX_SIGNATORIES_LIMIT ; i++) {
                     this.view.$(SELECTORS.addSignatoryButton).click();
                 }
                 expect(this.view.$(SELECTORS.addSignatoryButton)).toHaveClass('disableClick');
@@ -215,7 +214,7 @@ function(_, Course, CertificateModel, SignatoryModel, CertificatesCollection, Ce
 
             it('user can add signatories when signatory reached the upper limit But after deleting a signatory',
                 function() {
-                    for(var i = 1; i < MAX_SIGNATORIES ; i++) {
+                    for(var i = 1; i < MAX_SIGNATORIES_LIMIT ; i++) {
                         this.view.$(SELECTORS.addSignatoryButton).click();
                     }
                     expect(this.view.$(SELECTORS.addSignatoryButton)).toHaveClass('disableClick');
@@ -228,10 +227,10 @@ function(_, Course, CertificateModel, SignatoryModel, CertificatesCollection, Ce
                 }
             );
 
-            it('signatories should not save when fields have too many characters per line', function() {
+            it('signatories should save when fields have too many characters per line', function() {
                 this.view.$(SELECTORS.addSignatoryButton).click();
                 setValuesToInputs(this.view, {
-                    inputCertificateName: 'New Certificate Name'
+                    inputCertificateName: 'New Certificate Name that has too many characters without any limit'
                 });
 
                 setValuesToInputs(this.view, {
@@ -243,10 +242,10 @@ function(_, Course, CertificateModel, SignatoryModel, CertificatesCollection, Ce
                 });
 
                 this.view.$(SELECTORS.saveCertificateButton).click();
-                expect(this.view.$('.certificate-edit-error')).toHaveClass('is-shown');
+                expect(this.view.$('.certificate-edit-error')).not.toHaveClass('is-shown');
             });
 
-            it('signatories should not save when title span on more than 2 lines', function() {
+            it('signatories should save when title span on more than 2 lines', function() {
                 this.view.$(SELECTORS.addSignatoryButton).click();
                 setValuesToInputs(this.view, {
                     inputCertificateName: 'New Certificate Name'
@@ -265,7 +264,7 @@ function(_, Course, CertificateModel, SignatoryModel, CertificatesCollection, Ce
                 });
 
                 this.view.$(SELECTORS.saveCertificateButton).click();
-                expect(this.view.$('.certificate-edit-error')).toHaveClass('is-shown');
+                expect(this.view.$('.certificate-edit-error')).not.toHaveClass('is-shown');
             });
 
             it('user can delete those signatories already saved', function() {
@@ -274,7 +273,7 @@ function(_, Course, CertificateModel, SignatoryModel, CertificatesCollection, Ce
                 var signatory = this.model.get('signatories').at(0);
                 var signatory_url = '/certificates/signatory';
                 signatory.url = signatory_url;
-                spyOn(signatory, "isNew").andReturn(false);
+                spyOn(signatory, "isNew").and.returnValue(false);
                 var text = 'Delete "'+ signatory.get('name') +'" from the list of signatories?';
                 clickDeleteItem(this, text, SELECTORS.signatoryDeleteButton + ':first', signatory_url);
                 expect(this.model.get('signatories').length).toEqual(total_signatories - 1);
@@ -283,7 +282,7 @@ function(_, Course, CertificateModel, SignatoryModel, CertificatesCollection, Ce
             it('can cancel deletion of signatories', function() {
                 this.view.$(SELECTORS.addSignatoryButton).click();
                 var signatory = this.model.get('signatories').at(0);
-                spyOn(signatory, "isNew").andReturn(false);
+                spyOn(signatory, "isNew").and.returnValue(false);
                 // add one more signatory
                 this.view.$(SELECTORS.addSignatoryButton).click();
                 var total_signatories = this.model.get('signatories').length;

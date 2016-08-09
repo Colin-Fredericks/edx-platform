@@ -1,4 +1,4 @@
-;(function (define) {
+(function(define) {
     'use strict';
     define([
         'backbone',
@@ -6,22 +6,21 @@
         'teams/js/views/team_card',
         'common/js/components/views/paginated_view',
         'teams/js/views/team_utils'
-    ], function (Backbone, gettext, TeamCardView, PaginatedView, TeamUtils) {
+    ], function(Backbone, gettext, TeamCardView, PaginatedView, TeamUtils) {
         var TeamsView = PaginatedView.extend({
             type: 'teams',
 
             srInfo: {
-                id: "heading-browse-teams",
+                id: 'heading-browse-teams',
                 text: gettext('All teams')
             },
 
-            initialize: function (options) {
-                this.topic = options.topic;
-                this.teamMemberships = options.teamMemberships;
+            paginationLabel: gettext('Teams Pagination'),
+
+            initialize: function(options) {
                 this.context = options.context;
                 this.itemViewClass = TeamCardView.extend({
                     router: options.router,
-                    topic: options.topic,
                     maxTeamSize: this.context.maxTeamSize,
                     srInfo: this.srInfo,
                     countries: TeamUtils.selectorOptionsArrayToHashWithBlank(this.context.countries),

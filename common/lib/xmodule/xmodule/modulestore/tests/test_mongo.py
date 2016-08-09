@@ -24,6 +24,7 @@ from xblock.runtime import KeyValueStore
 from xblock.exceptions import InvalidScopeError
 
 from xmodule.tests import DATA_DIR
+from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.locations import Location
 from xmodule.modulestore import ModuleStoreEnum
 from xmodule.modulestore.mongo import MongoKeyValueStore
@@ -210,13 +211,7 @@ class TestMongoModuleStore(TestMongoModuleStoreBase):
         '''Make sure the course objects loaded properly'''
         courses = self.draft_store.get_courses()
 
-        # note, the number of courses expected is really
-        # 6, but due to a lack of cache flushing between
-        # test case runs, we will get back 7.
-        # When we fix the caching issue, we should reduce this
-        # to 6 and remove the 'treexport_peer_component' course_id
-        # from the list below
-        assert_equals(len(courses), 7)
+        assert_equals(len(courses), 6)
         course_ids = [course.id for course in courses]
 
         for course_key in [
@@ -229,9 +224,6 @@ class TestMongoModuleStore(TestMongoModuleStoreBase):
                 ['edX', 'test_unicode', '2012_Fall'],
                 ['edX', 'toy', '2012_Fall'],
                 ['guestx', 'foo', 'bar'],
-                # This course below is due to a caching issue in the modulestore
-                # which is not cleared between test runs. This means
-                ['edX', 'treeexport_peer_component', 'export_peer_component'],
             ]
         ]:
             assert_in(course_key, course_ids)
@@ -263,13 +255,7 @@ class TestMongoModuleStore(TestMongoModuleStoreBase):
             assert_in(course_key, course_ids)
 
         courses = self.draft_store.get_courses(org='edX')
-        # note, the number of courses expected is really
-        # 5, but due to a lack of cache flushing between
-        # test case runs, we will get back 6.
-        # When we fix the caching issue, we should reduce this
-        # to 6 and remove the 'treexport_peer_component' course_id
-        # from the list below
-        assert_equals(len(courses), 6)
+        assert_equals(len(courses), 5)
         course_ids = [course.id for course in courses]
 
         for course_key in [
@@ -280,9 +266,6 @@ class TestMongoModuleStore(TestMongoModuleStoreBase):
                 ['edX', 'test_import_course', '2012_Fall'],
                 ['edX', 'test_unicode', '2012_Fall'],
                 ['edX', 'toy', '2012_Fall'],
-                # This course below is due to a caching issue in the modulestore
-                # which is not cleared between test runs. This means
-                ['edX', 'treeexport_peer_component', 'export_peer_component'],
             ]
         ]:
             assert_in(course_key, course_ids)
@@ -307,6 +290,15 @@ class TestMongoModuleStore(TestMongoModuleStoreBase):
             )
             assert_false(self.draft_store.has_course(mix_cased))
             assert_false(self.draft_store.has_course(mix_cased, ignore_case=True))
+
+    def test_get_mongo_course_with_split_course_key(self):
+        """
+        Test mongo course using split course_key will not able to access it.
+        """
+        course_key = CourseKey.from_string('course-v1:edX+simple+2012_Fall')
+
+        with self.assertRaises(ItemNotFoundError):
+            self.draft_store.get_course(course_key)
 
     def test_has_course_with_library(self):
         """
@@ -678,57 +670,6 @@ class TestMongoModuleStore(TestMongoModuleStoreBase):
         self.assertEqual(component.published_on, published_date)
         self.assertEqual(component.published_by, published_by)
 
-    def test_export_course_with_peer_component(self):
-        """
-        Test export course when link_to_location is given in peer grading interface settings.
-        """
-
-        name = "export_peer_component"
-
-        locations = self._create_test_tree(name)
-
-        # Insert the test block directly into the module store
-        problem_location = Location('edX', 'tree{}'.format(name), name, 'combinedopenended', 'test_peer_problem')
-
-        self.draft_store.create_child(
-            self.dummy_user,
-            locations["child"],
-            problem_location.block_type,
-            block_id=problem_location.block_id
-        )
-
-        interface_location = Location('edX', 'tree{}'.format(name), name, 'peergrading', 'test_peer_interface')
-
-        self.draft_store.create_child(
-            self.dummy_user,
-            locations["child"],
-            interface_location.block_type,
-            block_id=interface_location.block_id
-        )
-
-        self.draft_store._update_single_item(
-            as_draft(interface_location),
-            {
-                'definition.data': {},
-                'metadata': {
-                    'link_to_location': unicode(problem_location),
-                    'use_for_single_location': True,
-                },
-            },
-        )
-
-        component = self.draft_store.get_item(interface_location)
-        self.assertEqual(unicode(component.link_to_location), unicode(problem_location))
-
-        root_dir = path(mkdtemp())
-        self.addCleanup(shutil.rmtree, root_dir)
-
-        # export_course_to_xml should work.
-        export_course_to_xml(
-            self.draft_store, self.content_store, interface_location.course_key,
-            root_dir, 'test_export'
-        )
-
     def test_draft_modulestore_create_child_with_position(self):
         """
         This test is designed to hit a specific set of use cases having to do with
@@ -757,6 +698,13 @@ class TestMongoModuleStore(TestMongoModuleStoreBase):
 
         # Clean up the data so we don't break other tests which apparently expect a particular state
         self.draft_store.delete_course(course.id, self.dummy_user)
+
+    def test_make_course_usage_key(self):
+        """Test that we get back the appropriate usage key for the root of a course key."""
+        course_key = CourseLocator(org="edX", course="101", run="2015")
+        root_block_key = self.draft_store.make_course_usage_key(course_key)
+        self.assertEqual(root_block_key.block_type, "course")
+        self.assertEqual(root_block_key.name, "2015")
 
 
 class TestMongoModuleStoreWithNoAssetCollection(TestMongoModuleStore):
@@ -829,15 +777,15 @@ class TestMongoKeyValueStore(unittest.TestCase):
     def test_write(self):
         yield (self._check_write, KeyValueStore.Key(Scope.content, None, None, 'foo'), 'new_data')
         yield (self._check_write, KeyValueStore.Key(Scope.children, None, None, 'children'), [])
+        yield (self._check_write, KeyValueStore.Key(Scope.children, None, None, 'parent'), None)
         yield (self._check_write, KeyValueStore.Key(Scope.settings, None, None, 'meta'), 'new_settings')
-        # write Scope.parent raises InvalidScope, which is covered in test_write_invalid_scope
 
     def test_write_non_dict_data(self):
         self.kvs = MongoKeyValueStore('xml_data', self.parent, self.children, self.metadata)
         self._check_write(KeyValueStore.Key(Scope.content, None, None, 'data'), 'new_data')
 
     def test_write_invalid_scope(self):
-        for scope in (Scope.preferences, Scope.user_info, Scope.user_state, Scope.parent):
+        for scope in (Scope.preferences, Scope.user_info, Scope.user_state):
             with assert_raises(InvalidScopeError):
                 self.kvs.set(KeyValueStore.Key(scope, None, None, 'foo'), 'new_value')
 

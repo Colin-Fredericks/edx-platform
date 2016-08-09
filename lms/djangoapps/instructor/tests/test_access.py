@@ -8,7 +8,7 @@ from student.tests.factories import UserFactory
 from xmodule.modulestore.tests.factories import CourseFactory
 from xmodule.modulestore.tests.django_utils import SharedModuleStoreTestCase
 
-from student.roles import CourseBetaTesterRole, CourseStaffRole
+from student.roles import CourseBetaTesterRole, CourseStaffRole, CourseCcxCoachRole
 
 from django_comment_common.models import (Role,
                                           FORUM_ROLE_MODERATOR)
@@ -18,7 +18,7 @@ from instructor.access import (allow_access,
                                update_forum_role)
 
 
-@attr('shard_1')
+@attr(shard=1)
 class TestInstructorAccessList(SharedModuleStoreTestCase):
     """ Test access listings. """
     @classmethod
@@ -44,7 +44,7 @@ class TestInstructorAccessList(SharedModuleStoreTestCase):
         self.assertEqual(set(beta_testers), set(self.beta_testers))
 
 
-@attr('shard_1')
+@attr(shard=1)
 class TestInstructorAccessAllow(SharedModuleStoreTestCase):
     """ Test access allow. """
     @classmethod
@@ -68,6 +68,11 @@ class TestInstructorAccessAllow(SharedModuleStoreTestCase):
         allow_access(self.course, user, 'staff')
         self.assertTrue(CourseStaffRole(self.course.id).has_user(user))
 
+    def test_allow_ccx_coach(self):
+        user = UserFactory()
+        allow_access(self.course, user, 'ccx_coach')
+        self.assertTrue(CourseCcxCoachRole(self.course.id).has_user(user))
+
     def test_allow_beta(self):
         """ Test allow beta against list beta. """
         user = UserFactory()
@@ -85,7 +90,7 @@ class TestInstructorAccessAllow(SharedModuleStoreTestCase):
         allow_access(self.course, user, 'staff')
 
 
-@attr('shard_1')
+@attr(shard=1)
 class TestInstructorAccessRevoke(SharedModuleStoreTestCase):
     """ Test access revoke. """
     @classmethod
@@ -123,7 +128,7 @@ class TestInstructorAccessRevoke(SharedModuleStoreTestCase):
         revoke_access(self.course, user, 'robot-not-a-level')
 
 
-@attr('shard_1')
+@attr(shard=1)
 class TestInstructorAccessForum(SharedModuleStoreTestCase):
     """
     Test forum access control.

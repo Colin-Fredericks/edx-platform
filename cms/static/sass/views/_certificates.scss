@@ -33,22 +33,44 @@
       @extend %no-content;
     }
 
-    .wrapper-certificate {
+    .wrapper-certificates {
 
       .title {
         @extend %t-title4;
         @extend %t-strong;
-        margin-bottom: ($baseline/2);
       }
 
       .copy {
         @extend %t-copy-sub1;
       }
+
+      .instructions {
+        @extend %t-copy-sub1;
+        margin-bottom: $baseline;
+      }
+    }
+
+    .certificate-settings {
+      margin-bottom: $baseline;
+    }
+
+    .actual-course-title {
+      @extend %t-strong;
+      margin-bottom: $baseline;
     }
   }
 
   .content-supplementary {
     width: flex-grid(3, 12);
+  }
+
+  .certificate-info-section{
+      overflow: auto;
+
+    .course-title-section, .course-number-section{
+      min-width: 47%;
+      @include margin-right(2%);
+    }
   }
 }
 
@@ -196,6 +218,10 @@
 
       .wrapper-form {
         padding: $baseline ($baseline*1.5);
+
+        label {
+          @extend %t-strong;
+        }
       }
 
       .action-add-signatory {
@@ -216,11 +242,11 @@
         @include transition(color, 0.15s, ease-in-out);
         display: block;
         margin-top: ($baseline/2);
-        color: $gray-l2;
+        color: $gray-d1;
       }
 
       .is-focused .tip {
-        color: $gray;
+        color: $gray-d2;
       }
 
 
@@ -299,7 +325,7 @@
 
           &:focus {
             + .tip {
-              color: $gray;
+              color: $gray-d2;
             }
           }
         }
@@ -532,6 +558,10 @@
       .signatory-image {
         margin-top: 20px;
       }
+
+      .signature-image {
+        max-width: 450px;
+      }
     }
 
     .signatory-panel-body label {
@@ -558,7 +588,7 @@
       @include transition(color, 0.15s, ease-in-out);
       display: block;
       margin-top: ($baseline/4);
-      color: $gray-l3;
+      color: $gray-d1;
     }
 
     .field {
@@ -631,7 +661,7 @@
 
         &:focus {
           + .tip {
-            color: $gray;
+            color: $gray-d1;
           }
         }
       }
@@ -677,7 +707,7 @@
         .wrapper-signature-image {
           display: block;
           width: 375px;
-          height: 200px;
+          line-height: 200px;
           overflow: hidden;
           margin: 0 auto;
           border: 1px solid $gray-l4;
@@ -687,9 +717,9 @@
         }
 
         .signature-image {
-          display: block;
+          vertical-align: middle;
           width: 100%;
-          min-height: 100%;
+          max-height: 100%;
         }
       }
     }

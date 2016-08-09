@@ -5,12 +5,11 @@ The Files and Uploads page for a course in Studio
 import urllib
 import os
 from opaque_keys.edx.locator import CourseLocator
-from . import BASE_URL
-from .course_page import CoursePage
-from bok_choy.javascript import wait_for_js, requirejs
+from common.test.acceptance.pages.studio import BASE_URL
+from common.test.acceptance.pages.studio.course_page import CoursePage
+from bok_choy.javascript import wait_for_js
 
 
-@requirejs('js/views/assets')
 class AssetIndexPage(CoursePage):
 
     """
@@ -38,7 +37,11 @@ class AssetIndexPage(CoursePage):
 
     @wait_for_js
     def is_browser_on_page(self):
-        return self.q(css='body.view-uploads').present
+        return all([
+            self.q(css='body.view-uploads').present,
+            self.q(css='.page-header').present,
+            not self.q(css='div.ui-loading').visible,
+        ])
 
     @wait_for_js
     def type_filter_on_page(self):

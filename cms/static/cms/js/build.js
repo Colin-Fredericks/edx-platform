@@ -1,8 +1,8 @@
-(function () {
+(function() {
     'use strict';
     var commonLibrariesPath = 'common/js/common_libraries';
 
-    var getModule = function (moduleName, excludeCommonDeps) {
+    var getModule = function(moduleName, excludeCommonDeps) {
         var module = {
             name: moduleName
         };
@@ -14,7 +14,7 @@
         return module;
     };
 
-    var getModulesList = function (modules) {
+    var getModulesList = function(modules) {
         var result = [getModule(commonLibrariesPath)];
         return result.concat(modules.map(function (moduleName) {
             return getModule(moduleName, true);
@@ -34,9 +34,7 @@
         modules: getModulesList([
             'js/factories/asset_index',
             'js/factories/base',
-            'js/factories/checklists',
             'js/factories/container',
-            'js/factories/course',
             'js/factories/course_create_rerun',
             'js/factories/course_info',
             'js/factories/edit_tabs',
@@ -55,7 +53,8 @@
             'js/factories/settings_graders',
             'js/factories/textbooks',
             'js/factories/videos_index',
-            'js/factories/xblock_validation'
+            'js/factories/xblock_validation',
+            'js/programs/program_admin_app'
         ]),
         /**
          * By default all the configuration for optimization happens from the command
@@ -94,7 +93,7 @@
         /**
          * Stub out requireJS text in the optimized file, but leave available for non-optimized development use.
          */
-        stubModules: ["text"],
+        stubModules: ['text'],
 
         /**
          * If shim config is used in the app during runtime, duplicate the config
@@ -172,4 +171,4 @@
          */
         logLevel: 1
     };
-} ())
+}())

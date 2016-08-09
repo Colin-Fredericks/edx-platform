@@ -11,18 +11,18 @@ from nose.plugins.attrib import attr
 from selenium.common.exceptions import TimeoutException
 from uuid import uuid4
 
-from ..helpers import get_modal_alert, EventsTestMixin, UniqueCourseTest
-from ...fixtures import LMS_BASE_URL
-from ...fixtures.course import CourseFixture
-from ...fixtures.discussion import (
+from common.test.acceptance.tests.helpers import get_modal_alert, EventsTestMixin, UniqueCourseTest
+from common.test.acceptance.fixtures import LMS_BASE_URL
+from common.test.acceptance.fixtures.course import CourseFixture
+from common.test.acceptance.fixtures.discussion import (
     Thread,
     MultipleThreadFixture
 )
-from ...pages.lms.auto_auth import AutoAuthPage
-from ...pages.lms.course_info import CourseInfoPage
-from ...pages.lms.learner_profile import LearnerProfilePage
-from ...pages.lms.tab_nav import TabNavPage
-from ...pages.lms.teams import (
+from common.test.acceptance.pages.lms.auto_auth import AutoAuthPage
+from common.test.acceptance.pages.lms.course_info import CourseInfoPage
+from common.test.acceptance.pages.lms.learner_profile import LearnerProfilePage
+from common.test.acceptance.pages.lms.tab_nav import TabNavPage
+from common.test.acceptance.pages.lms.teams import (
     TeamsPage,
     MyTeamsPage,
     BrowseTopicsPage,
@@ -31,7 +31,7 @@ from ...pages.lms.teams import (
     EditMembershipPage,
     TeamPage
 )
-from ...pages.common.utils import confirm_prompt
+from common.test.acceptance.pages.common.utils import confirm_prompt
 
 
 TOPICS_PER_PAGE = 12
@@ -44,6 +44,8 @@ class TeamsTabBase(EventsTestMixin, UniqueCourseTest):
         self.tab_nav = TabNavPage(self.browser)
         self.course_info_page = CourseInfoPage(self.browser, self.course_id)
         self.teams_page = TeamsPage(self.browser, self.course_id)
+        # TODO: Refactor so resetting events database is not necessary
+        self.reset_event_tracking()
 
     def create_topics(self, num_topics):
         """Create `num_topics` test topics."""
@@ -77,6 +79,18 @@ class TeamsTabBase(EventsTestMixin, UniqueCourseTest):
         )
         self.assertEqual(response.status_code, 200)
         return json.loads(response.text)
+
+    def create_memberships(self, num_memberships, team_id):
+        """Create `num_memberships` users and assign them to `team_id`. The
+        last user created becomes the current user."""
+        memberships = []
+        for __ in xrange(num_memberships):
+            user_info = AutoAuthPage(self.browser, course_id=self.course_id).visit().user_info
+            memberships.append(user_info)
+            self.create_membership(user_info['username'], team_id)
+        #pylint: disable=attribute-defined-outside-init
+        self.user_info = memberships[-1]
+        return memberships
 
     def create_membership(self, username, team_id):
         """Assign `username` to `team_id`."""
@@ -143,7 +157,7 @@ class TeamsTabBase(EventsTestMixin, UniqueCourseTest):
 
 
 @ddt.ddt
-@attr('shard_5')
+@attr(shard=5)
 class TeamsTabTest(TeamsTabBase):
     """
     Tests verifying when the Teams tab is present.
@@ -283,12 +297,13 @@ class TeamsTabTest(TeamsTabBase):
                     team_id=team['id']
                 ))
         )
+        self.teams_page.wait_for_page()
         self.teams_page.wait_for_ajax()
         self.assertTrue(self.teams_page.q(css=selector).present)
         self.assertTrue(self.teams_page.q(css=selector).visible)
 
 
-@attr('shard_5')
+@attr(shard=5)
 class MyTeamsTest(TeamsTabBase):
     """
     Tests for the "My Teams" tab of the Teams page.
@@ -339,8 +354,20 @@ class MyTeamsTest(TeamsTabBase):
             self.my_teams_page.visit()
         self.verify_teams(self.my_teams_page, teams)
 
+    def test_multiple_team_members(self):
+        """
+        Scenario: Visiting the My Teams page when user is a member of a team should display the teams.
+        Given I am a member of a team with multiple members
+        When I visit the My Teams page
+        Then I should see the correct number of team members on my membership
+        """
+        teams = self.create_teams(self.topic, 1)
+        self.create_memberships(4, teams[0]['id'])
+        self.my_teams_page.visit()
+        self.assertEqual(self.my_teams_page.team_memberships[0], '4 / 10 Members')
 
-@attr('shard_5')
+
+@attr(shard=5)
 @ddt.ddt
 class BrowseTopicsTest(TeamsTabBase):
     """
@@ -400,13 +427,13 @@ class BrowseTopicsTest(TeamsTabBase):
         browse_teams_page.click_create_team_link()
         create_team_page = TeamManagementPage(self.browser, self.course_id, topic)
         create_team_page.value_for_text_field(field_id='name', value='Team Name', press_enter=False)
-        create_team_page.value_for_textarea_field(
+        create_team_page.set_value_for_textarea_field(
             field_id='description',
             value='Team description.'
         )
         create_team_page.submit_form()
         team_page = TeamPage(self.browser, self.course_id)
-        self.assertTrue(team_page.is_browser_on_page)
+        self.assertTrue(team_page.is_browser_on_page())
         team_page.click_all_topics()
         self.assertTrue(self.topics_page.is_browser_on_page())
         self.topics_page.wait_for_ajax()
@@ -494,6 +521,23 @@ class BrowseTopicsTest(TeamsTabBase):
         self.assertEqual(len(self.topics_page.topic_cards), TOPICS_PER_PAGE)
         self.assertTrue(self.topics_page.get_pagination_header_text().startswith('Showing 1-12 out of 13 total'))
 
+    def test_topic_pagination_one_page(self):
+        """
+        Scenario: Browsing topics when there are fewer topics than the page size i.e. 12
+            all topics should show on one page
+        Given I am enrolled in a course with team configuration and topics
+        When I visit the Teams page
+        And I browse topics
+        And I should see corrected number of topic cards
+        And I should see the correct page header
+        And I should not see a pagination footer
+        """
+        self.set_team_configuration({u"max_team_size": 10, u"topics": self.create_topics(10)})
+        self.topics_page.visit()
+        self.assertEqual(len(self.topics_page.topic_cards), 10)
+        self.assertTrue(self.topics_page.get_pagination_header_text().startswith('Showing 1-10 out of 10 total'))
+        self.assertFalse(self.topics_page.pagination_controls_visible())
+
     def test_topic_description_truncation(self):
         """
         Scenario: excessively long topic descriptions should be truncated so
@@ -558,7 +602,7 @@ class BrowseTopicsTest(TeamsTabBase):
             self.topics_page.visit()
 
 
-@attr('shard_5')
+@attr(shard=5)
 @ddt.ddt
 class BrowseTeamsWithinTopicTest(TeamsTabBase):
     """
@@ -648,10 +692,7 @@ class BrowseTeamsWithinTopicTest(TeamsTabBase):
                 user_info = AutoAuthPage(self.browser, course_id=self.course_id).visit().user_info
                 self.create_membership(user_info['username'], team['id'])
             team['open_slots'] = self.max_team_size - i
-            # Parse last activity date, removing microseconds because
-            # the Django ORM does not support them. Will be fixed in
-            # Django 1.8.
-            team['last_activity_at'] = parse(team['last_activity_at']).replace(microsecond=0)
+
         # Re-authenticate as staff after creating users
         AutoAuthPage(
             self.browser,
@@ -865,7 +906,7 @@ class BrowseTeamsWithinTopicTest(TeamsTabBase):
             alert.accept()
 
 
-@attr('shard_5')
+@attr(shard=5)
 class TeamFormActions(TeamsTabBase):
     """
     Base class for create, edit, and delete team.
@@ -934,7 +975,7 @@ class TeamFormActions(TeamsTabBase):
             value=self.TEAMS_NAME,
             press_enter=False
         )
-        self.team_management_page.value_for_textarea_field(
+        self.team_management_page.set_value_for_textarea_field(
             field_id='description',
             value=self.TEAM_DESCRIPTION
         )
@@ -1358,7 +1399,10 @@ class EditTeamTest(TeamFormActions):
                 }
             },
         ]
-        with self.assert_events_match_during(event_filter=self.only_team_events, expected_events=expected_events):
+        with self.assert_events_match_during(
+            event_filter=self.only_team_events,
+            expected_events=expected_events,
+        ):
             self.team_management_page.submit_form()
 
         self.team_page.wait_for_page()
@@ -1575,7 +1619,7 @@ class EditMembershipTest(TeamFormActions):
         self.edit_membership_helper(role, cancel=True)
 
 
-@attr('shard_5')
+@attr(shard=5)
 @ddt.ddt
 class TeamPageTest(TeamsTabBase):
     """Tests for viewing a specific team"""

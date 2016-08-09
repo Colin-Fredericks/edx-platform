@@ -1,46 +1,28 @@
 """Tests for certificates views. """
 
 import json
-import ddt
 from uuid import uuid4
-from nose.plugins.attrib import attr
-from mock import patch
 
+import ddt
 from django.conf import settings
 from django.core.cache import cache
 from django.core.urlresolvers import reverse
-from django.test import TestCase
 from django.test.client import Client
 from django.test.utils import override_settings
-
+from nose.plugins.attrib import attr
 from opaque_keys.edx.locator import CourseLocator
-from openedx.core.lib.tests.assertions.events import assert_event_matches
-from student.tests.factories import UserFactory, CourseEnrollmentFactory
-from track.tests import EventTrackingTestCase
-from xmodule.modulestore.tests.factories import CourseFactory
-from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
-from util.testing import UrlResetMixin
+from openedx.core.djangolib.testing.utils import CacheIsolationTestCase
 
 from certificates.api import get_certificate_url
 from certificates.models import (
     ExampleCertificateSet,
     ExampleCertificate,
     GeneratedCertificate,
-    BadgeAssertion,
-    CertificateStatuses,
     CertificateHtmlViewConfiguration,
-    CertificateSocialNetworks,
-    CertificateTemplate,
 )
-
-from certificates.tests.factories import (
-    CertificateHtmlViewConfigurationFactory,
-    LinkedInAddToProfileConfigurationFactory,
-    BadgeAssertionFactory,
-)
-from util import organizations_helpers as organizations_api
-from django.test.client import RequestFactory
-import urllib
+from student.tests.factories import UserFactory
+from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
+from xmodule.modulestore.tests.factories import CourseFactory
 
 FEATURES_WITH_CERTS_ENABLED = settings.FEATURES.copy()
 FEATURES_WITH_CERTS_ENABLED['CERTIFICATES_HTML_VIEW'] = True
@@ -54,9 +36,9 @@ FEATURES_WITH_CUSTOM_CERTS_ENABLED = {
 FEATURES_WITH_CUSTOM_CERTS_ENABLED.update(FEATURES_WITH_CERTS_ENABLED)
 
 
-@attr('shard_1')
+@attr(shard=1)
 @ddt.ddt
-class UpdateExampleCertificateViewTest(TestCase):
+class UpdateExampleCertificateViewTest(CacheIsolationTestCase):
     """Tests for the XQueue callback that updates example certificates. """
 
     COURSE_KEY = CourseLocator(org='test', course='test', run='test')
@@ -65,6 +47,8 @@ class UpdateExampleCertificateViewTest(TestCase):
     TEMPLATE = 'test.pdf'
     DOWNLOAD_URL = 'http://www.example.com'
     ERROR_REASON = 'Kaboom!'
+
+    ENABLED_CACHES = ['default']
 
     def setUp(self):
         super(UpdateExampleCertificateViewTest, self).setUp()
@@ -196,17 +180,7 @@ class UpdateExampleCertificateViewTest(TestCase):
         self.assertEqual(content['return_code'], 0)
 
 
-def fakemicrosite(name, default=None):
-    """
-    This is a test mocking function to return a microsite configuration
-    """
-    if name == 'microsite_config_key':
-        return 'test_microsite'
-    else:
-        return default
-
-
-@attr('shard_1')
+@attr(shard=1)
 class MicrositeCertificatesViewsTests(ModuleStoreTestCase):
     """
     Tests for the microsite certificates web/html views
@@ -217,6 +191,9 @@ class MicrositeCertificatesViewsTests(ModuleStoreTestCase):
         self.course = CourseFactory.create(
             org='testorg', number='run1', display_name='refundable course'
         )
+        self.course.cert_html_view_enabled = True
+        self.course.save()
+        self.store.update_item(self.course, self.user.id)
         self.course_id = self.course.location.course_key
         self.user = UserFactory.create(
             email='joe_user@edx.org',
@@ -226,15 +203,14 @@ class MicrositeCertificatesViewsTests(ModuleStoreTestCase):
         self.user.profile.name = "Joe User"
         self.user.profile.save()
         self.client.login(username=self.user.username, password='foo')
-        self.cert = GeneratedCertificate.objects.create(
+        self.cert = GeneratedCertificate.eligible_certificates.create(
             user=self.user,
             course_id=self.course_id,
-            verify_uuid=uuid4(),
             download_uuid=uuid4(),
             grade="0.95",
             key='the_key',
             distinction=True,
-            status='generated',
+            status='downloadable',
             mode='honor',
             name=self.user.profile.name,
         )
@@ -279,7 +255,6 @@ class MicrositeCertificatesViewsTests(ModuleStoreTestCase):
         self.course.save()
         self.store.update_item(self.course, self.user.id)
 
-    @patch("microsite_configuration.microsite.get_value", fakemicrosite)
     @override_settings(FEATURES=FEATURES_WITH_CERTS_ENABLED)
     def test_html_view_for_microsite(self):
         test_configuration_string = """{
@@ -294,22 +269,23 @@ class MicrositeCertificatesViewsTests(ModuleStoreTestCase):
                 "logo_src": "/static/certificates/images/logo-edx.svg",
                 "logo_url": "http://www.edx.org"
             },
-            "test_microsite": {
-                "accomplishment_class_append": "accomplishment-certificate",
-                "platform_name": "platform_microsite",
-                "company_about_url": "http://www.microsite.org/about-us",
-                "company_privacy_url": "http://www.microsite.org/edx-privacy-policy",
-                "company_tos_url": "http://www.microsite.org/microsite-terms-service",
-                "company_verified_certificate_url": "http://www.microsite.org/verified-certificate",
-                "document_stylesheet_url_application": "/static/certificates/sass/main-ltr.css",
-                "logo_src": "/static/certificates/images/logo-microsite.svg",
-                "logo_url": "http://www.microsite.org",
-                "company_about_description": "This is special microsite aware company_about_description content",
-                "company_about_title": "Microsite title"
+            "microsites": {
+                "test-site": {
+                    "accomplishment_class_append": "accomplishment-certificate",
+                    "platform_name": "platform_microsite",
+                    "company_about_url": "http://www.microsite.org/about-us",
+                    "company_privacy_url": "http://www.microsite.org/edx-privacy-policy",
+                    "company_tos_url": "http://www.microsite.org/microsite-terms-service",
+                    "company_verified_certificate_url": "http://www.microsite.org/verified-certificate",
+                    "document_stylesheet_url_application": "/static/certificates/sass/main-ltr.css",
+                    "logo_src": "/static/certificates/images/logo-microsite.svg",
+                    "logo_url": "http://www.microsite.org",
+                    "company_about_description": "This is special microsite aware company_about_description content",
+                    "company_about_title": "Microsite title"
+                }
             },
             "honor": {
-                "certificate_type": "Honor Code",
-                "document_body_class_append": "is-honorcode"
+                "certificate_type": "Honor Code"
             }
         }"""
 
@@ -320,13 +296,14 @@ class MicrositeCertificatesViewsTests(ModuleStoreTestCase):
             course_id=unicode(self.course.id)
         )
         self._add_course_certificates(count=1, signatory_count=2)
-        response = self.client.get(test_url)
+        response = self.client.get(test_url, HTTP_HOST=settings.MICROSITE_TEST_HOSTNAME)
         self.assertIn('platform_microsite', response.content)
-        self.assertIn('http://www.microsite.org', response.content)
+
+        # logo url is taken from microsite configuration setting
+        self.assertIn('http://test_site.localhost', response.content)
         self.assertIn('This is special microsite aware company_about_description content', response.content)
         self.assertIn('Microsite title', response.content)
 
-    @patch("microsite_configuration.microsite.get_value", fakemicrosite)
     @override_settings(FEATURES=FEATURES_WITH_CERTS_ENABLED)
     def test_html_view_microsite_configuration_missing(self):
         test_configuration_string = """{
@@ -343,8 +320,7 @@ class MicrositeCertificatesViewsTests(ModuleStoreTestCase):
                 "company_about_description": "This should not survive being overwritten by static content"
             },
             "honor": {
-                "certificate_type": "Honor Code",
-                "document_body_class_append": "is-honorcode"
+                "certificate_type": "Honor Code"
             }
         }"""
         config = self._certificate_html_view_configuration(configuration_string=test_configuration_string)
@@ -354,56 +330,8 @@ class MicrositeCertificatesViewsTests(ModuleStoreTestCase):
             course_id=unicode(self.course.id)
         )
         self._add_course_certificates(count=1, signatory_count=2)
-        response = self.client.get(test_url)
+        response = self.client.get(test_url, HTTP_HOST=settings.MICROSITE_TEST_HOSTNAME)
         self.assertIn('edX', response.content)
         self.assertNotIn('platform_microsite', response.content)
         self.assertNotIn('http://www.microsite.org', response.content)
         self.assertNotIn('This should not survive being overwritten by static content', response.content)
-
-
-class TrackShareRedirectTest(UrlResetMixin, ModuleStoreTestCase, EventTrackingTestCase):
-    """
-    Verifies the badge image share event is sent out.
-    """
-
-    @patch.dict(settings.FEATURES, {"ENABLE_OPENBADGES": True})
-    def setUp(self):
-        super(TrackShareRedirectTest, self).setUp('certificates.urls')
-        self.client = Client()
-        self.course = CourseFactory.create(
-            org='testorg', number='run1', display_name='trackable course'
-        )
-        self.assertion = BadgeAssertionFactory(
-            user=self.user, course_id=self.course.id, data={
-                'image': 'http://www.example.com/image.png',
-                'json': {'id': 'http://www.example.com/assertion.json'},
-                'issuer': 'http://www.example.com/issuer.json',
-            },
-        )
-
-    def test_social_event_sent(self):
-        test_url = '/certificates/badge_share_tracker/{}/social_network/{}/'.format(
-            unicode(self.course.id),
-            self.user.username,
-        )
-        self.recreate_tracker()
-        response = self.client.get(test_url)
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(response['Location'], 'http://www.example.com/image.png')
-        assert_event_matches(
-            {
-                'name': 'edx.badge.assertion.shared',
-                'data': {
-                    'course_id': 'testorg/run1/trackable_course',
-                    'social_network': 'social_network',
-                    # pylint: disable=no-member
-                    'assertion_id': self.assertion.id,
-                    'assertion_json_url': 'http://www.example.com/assertion.json',
-                    'assertion_image_url': 'http://www.example.com/image.png',
-                    'user_id': self.user.id,
-                    'issuer': 'http://www.example.com/issuer.json',
-                    'enrollment_mode': 'honor',
-                },
-            },
-            self.get_event()
-        )

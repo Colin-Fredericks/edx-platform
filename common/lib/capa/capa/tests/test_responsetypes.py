@@ -57,11 +57,11 @@ class ResponseTest(unittest.TestCase):
         if self.xml_factory_class:
             self.xml_factory = self.xml_factory_class()
 
-    def build_problem(self, capa_system=None, **kwargs):
+    def build_problem(self, capa_system=None, **kwargs):  # pylint: disable=missing-docstring
         xml = self.xml_factory.build_xml(**kwargs)
         return new_loncapa_problem(xml, capa_system=capa_system)
 
-    def assert_grade(self, problem, submission, expected_correctness, msg=None):
+    def assert_grade(self, problem, submission, expected_correctness, msg=None):  # pylint: disable=missing-docstring
         input_dict = {'1_2_1': submission}
         correct_map = problem.grade_answers(input_dict)
         if msg is None:
@@ -69,11 +69,11 @@ class ResponseTest(unittest.TestCase):
         else:
             self.assertEquals(correct_map.get_correctness('1_2_1'), expected_correctness, msg)
 
-    def assert_answer_format(self, problem):
+    def assert_answer_format(self, problem):  # pylint: disable=missing-docstring
         answers = problem.get_question_answers()
-        self.assertTrue(answers['1_2_1'] is not None)
+        self.assertIsNotNone(answers['1_2_1'])
 
-    def assert_multiple_grade(self, problem, correct_answers, incorrect_answers):
+    def assert_multiple_grade(self, problem, correct_answers, incorrect_answers):  # pylint: disable=missing-docstring
         for input_str in correct_answers:
             result = problem.grade_answers({'1_2_1': input_str}).get_correctness('1_2_1')
             self.assertEqual(result, 'correct')
@@ -109,7 +109,7 @@ class ResponseTest(unittest.TestCase):
         return str(rand.randint(0, 1e9))
 
 
-class MultiChoiceResponseTest(ResponseTest):
+class MultiChoiceResponseTest(ResponseTest):  # pylint: disable=missing-docstring
     xml_factory_class = MultipleChoiceResponseXMLFactory
 
     def test_multiple_choice_grade(self):
@@ -170,7 +170,7 @@ class MultiChoiceResponseTest(ResponseTest):
         self.assertAlmostEqual(correct_map.get_npoints('1_2_1'), 0)
 
 
-class TrueFalseResponseTest(ResponseTest):
+class TrueFalseResponseTest(ResponseTest):  # pylint: disable=missing-docstring
     xml_factory_class = TrueFalseResponseXMLFactory
 
     def test_true_false_grade(self):
@@ -214,7 +214,7 @@ class TrueFalseResponseTest(ResponseTest):
         self.assert_grade(problem, ['choice_0'], 'correct')
 
 
-class ImageResponseTest(ResponseTest):
+class ImageResponseTest(ResponseTest):  # pylint: disable=missing-docstring
     xml_factory_class = ImageResponseXMLFactory
 
     def test_rectangle_grade(self):
@@ -277,7 +277,7 @@ class ImageResponseTest(ResponseTest):
         self.assert_answer_format(problem)
 
 
-class SymbolicResponseTest(ResponseTest):
+class SymbolicResponseTest(ResponseTest):  # pylint: disable=missing-docstring
     xml_factory_class = SymbolicResponseXMLFactory
 
     def test_grade_single_input_correct(self):
@@ -394,7 +394,7 @@ class SymbolicResponseTest(ResponseTest):
             )
 
 
-class OptionResponseTest(ResponseTest):
+class OptionResponseTest(ResponseTest):  # pylint: disable=missing-docstring
     xml_factory_class = OptionResponseXMLFactory
 
     def test_grade(self):
@@ -592,7 +592,7 @@ class FormulaResponseTest(ResponseTest):
         self.assertFalse(problem.responders.values()[0].validate_answer('3*y+2*x'))
 
 
-class StringResponseTest(ResponseTest):
+class StringResponseTest(ResponseTest):  # pylint: disable=missing-docstring
     xml_factory_class = StringResponseXMLFactory
 
     def test_backward_compatibility_for_multiple_answers(self):
@@ -658,7 +658,7 @@ class StringResponseTest(ResponseTest):
             "Martin Luther King"
         ]
 
-        problem = self.build_problem(answer="\w*\.?.*Luther King\s*.*", case_sensitive=True, regexp=True)
+        problem = self.build_problem(answer=r"\w*\.?.*Luther King\s*.*", case_sensitive=True, regexp=True)
 
         for answer in answers:
             self.assert_grade(problem, answer, "correct")
@@ -699,7 +699,7 @@ class StringResponseTest(ResponseTest):
         self.assert_grade(problem, u"o", "incorrect")
 
     def test_backslash_and_unicode_regexps(self):
-        """
+        r"""
         Test some special cases of [unicode] regexps.
 
         One needs to use either r'' strings or write real `repr` of unicode strings, because of the following
@@ -715,14 +715,14 @@ class StringResponseTest(ResponseTest):
             So  a\d in front-end editor will become a\\\\d in xml,  so it will match a1 as student answer.
         """
         problem = self.build_problem(answer=ur"5\\æ", case_sensitive=False, regexp=True)
-        self.assert_grade(problem, u"5\æ", "correct")
+        self.assert_grade(problem, ur"5\æ", "correct")
 
         problem = self.build_problem(answer=u"5\\\\æ", case_sensitive=False, regexp=True)
-        self.assert_grade(problem, u"5\æ", "correct")
+        self.assert_grade(problem, ur"5\æ", "correct")
 
     def test_backslash(self):
         problem = self.build_problem(answer=u"a\\\\c1", case_sensitive=False, regexp=True)
-        self.assert_grade(problem, u"a\c1", "correct")
+        self.assert_grade(problem, ur"a\c1", "correct")
 
     def test_special_chars(self):
         problem = self.build_problem(answer=ur"a \s1", case_sensitive=False, regexp=True)
@@ -946,8 +946,15 @@ class StringResponseTest(ResponseTest):
         hint = correct_map.get_hint('1_2_1')
         self.assertEqual(hint, self._get_random_number_result(problem.seed))
 
+    def test_empty_answer_problem_creation_not_allowed(self):
+        """
+        Tests that empty answer string is not allowed to create a problem
+        """
+        with self.assertRaises(LoncapaProblemError):
+            self.build_problem(answer=" ", case_sensitive=False, regexp=True)
 
-class CodeResponseTest(ResponseTest):
+
+class CodeResponseTest(ResponseTest):  # pylint: disable=missing-docstring
     xml_factory_class = CodeResponseXMLFactory
 
     def setUp(self):
@@ -1138,7 +1145,7 @@ class CodeResponseTest(ResponseTest):
                 self.assertEquals(output[answer_id]['msg'], u'Invalid grader reply. Please contact the course staff.')
 
 
-class ChoiceResponseTest(ResponseTest):
+class ChoiceResponseTest(ResponseTest):  # pylint: disable=missing-docstring
     xml_factory_class = ChoiceResponseXMLFactory
 
     def test_radio_group_grade(self):
@@ -1286,7 +1293,7 @@ class ChoiceResponseTest(ResponseTest):
         self.assertEqual(correct_map.get_correctness('1_2_1'), 'incorrect')
 
 
-class JavascriptResponseTest(ResponseTest):
+class JavascriptResponseTest(ResponseTest):  # pylint: disable=missing-docstring
     xml_factory_class = JavascriptResponseXMLFactory
 
     def test_grade(self):
@@ -1326,7 +1333,7 @@ class JavascriptResponseTest(ResponseTest):
             )
 
 
-class NumericalResponseTest(ResponseTest):
+class NumericalResponseTest(ResponseTest):  # pylint: disable=missing-docstring
     xml_factory_class = NumericalResponseXMLFactory
 
     # We blend the line between integration (using evaluator) and exclusively
@@ -1640,7 +1647,7 @@ class NumericalResponseTest(ResponseTest):
         self.assertFalse(responder.validate_answer('fish'))
 
 
-class CustomResponseTest(ResponseTest):
+class CustomResponseTest(ResponseTest):  # pylint: disable=missing-docstring
     xml_factory_class = CustomResponseXMLFactory
 
     def test_inline_code(self):
@@ -1798,6 +1805,33 @@ class CustomResponseTest(ResponseTest):
         correct_map = problem.grade_answers(input_dict)
         self.assertEqual(correct_map.get_npoints('1_2_1'), 0.5)
         self.assertEqual(correct_map.get_correctness('1_2_1'), 'partially-correct')
+
+    def test_script_context(self):
+        # Ensure that python script variables can be used in the "expect" and "answer" fields,
+
+        script = script = textwrap.dedent("""
+            expected_ans = 42
+
+            def check_func(expect, answer_given):
+                return answer_given == expect
+        """)
+
+        problems = (
+            self.build_problem(script=script, cfn="check_func", expect="$expected_ans"),
+            self.build_problem(script=script, cfn="check_func", answer_attr="$expected_ans")
+        )
+
+        input_dict = {'1_2_1': '42'}
+
+        for problem in problems:
+            correctmap = problem.grade_answers(input_dict)
+
+            # CustomResponse also adds 'expect' to the problem context; check that directly first:
+            self.assertEqual(problem.context['expect'], '42')
+
+            # Also make sure the problem was graded correctly:
+            correctness = correctmap.get_correctness('1_2_1')
+            self.assertEqual(correctness, 'correct')
 
     def test_function_code_multiple_input_no_msg(self):
 

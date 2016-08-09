@@ -44,7 +44,11 @@ class RefundTests(ModuleStoreTestCase):
             username='student',
             email='student+refund@edx.org'
         )
-        self.course_mode = CourseMode.objects.get_or_create(course_id=self.course_id, mode_slug='verified')[0]
+        self.course_mode = CourseMode.objects.get_or_create(
+            course_id=self.course_id,
+            mode_slug='verified',
+            min_price=1
+        )[0]
 
         self.order = None
         self.form_pars = {'course_id': str(self.course_id), 'user': self.student.email}
@@ -115,6 +119,6 @@ class RefundTests(ModuleStoreTestCase):
         response = self.client.get(response.get('location'))  # pylint: disable=maybe-no-member
 
         self.assertContains(response, "Unenrolled %s from" % self.student)
-        self.assertContains(response, "Refunded 1 for order id")
+        self.assertContains(response, "Refunded 1.00 for order id")
 
         self.assertFalse(CourseEnrollment.is_enrolled(self.student, self.course_id))

@@ -3,12 +3,12 @@
 Teams pages.
 """
 
-from .course_page import CoursePage
-from .discussion import InlineDiscussionPage
-from ..common.paging import PaginatedUIMixin
-from ...pages.common.utils import confirm_prompt
+from common.test.acceptance.pages.lms.course_page import CoursePage
+from common.test.acceptance.pages.lms.discussion import InlineDiscussionPage
+from common.test.acceptance.pages.common.paging import PaginatedUIMixin
+from common.test.acceptance.pages.common.utils import confirm_prompt
 
-from .fields import FieldsMixin
+from common.test.acceptance.pages.lms.fields import FieldsMixin
 
 
 TOPIC_CARD_CSS = 'div.wrapper-card-core'
@@ -45,6 +45,11 @@ class TeamCardsMixin(object):
     def team_descriptions(self):
         """Return the names of each team on the page."""
         return self.q(css=self._bounded_selector('p.card-description')).map(lambda e: e.text).results
+
+    @property
+    def team_memberships(self):
+        """Return the team memberships text for each card on the page."""
+        return self.q(css=self._bounded_selector('.member-count')).map(lambda e: e.text).results
 
 
 class BreadcrumbsMixin(object):
@@ -280,6 +285,7 @@ class BaseTeamsPage(CoursePage, PaginatedUIMixin, TeamCardsMixin, BreadcrumbsMix
         """
         self.q(css='.search-field').first.fill(string)
         self.q(css='.action-search').first.click()
+        self.wait_for_ajax()
         self.wait_for(
             lambda: self._showing_search_results,
             description="Showing search results"

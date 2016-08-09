@@ -55,7 +55,7 @@
 
         }
 
-        .action-create-course, .action-create-library {
+        .action-create-course, .action-create-library, .action-create-program {
           @extend %btn-primary-green;
           @extend %t-action3;
         }
@@ -300,7 +300,7 @@
       margin: 0 10px;
 
       &.active {
-        border-bottom: 4px solid $blue;
+        border-bottom: 4px solid $uxpl-blue-base;
       }
 
       &.active, &:hover {
@@ -310,7 +310,7 @@
       }
 
       a {
-        color: $blue;
+        color: $uxpl-blue-base;
         cursor: pointer;
         display: inline-block;
       }
@@ -318,7 +318,7 @@
   }
 
   // ELEM: course listings
-  .courses-tab, .libraries-tab {
+  .courses-tab, .libraries-tab, .programs-tab {
     display: none;
 
     &.active {
@@ -326,7 +326,7 @@
     }
   }
 
-  .courses, .libraries {
+  .courses, .libraries, .programs {
     .title {
       @extend %t-title6;
       margin-bottom: $baseline;
@@ -492,7 +492,6 @@
       @extend %t-copy-sub1;
       @include transition(opacity $tmg-f1 ease-in-out 0);
       color: $gray;
-      opacity: 0.75;
 
       .metadata-item {
         display: inline-block;

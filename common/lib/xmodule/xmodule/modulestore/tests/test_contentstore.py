@@ -16,7 +16,6 @@ from xmodule.contentstore.mongo import MongoContentStore
 from xmodule.contentstore.content import StaticContent
 from xmodule.exceptions import NotFoundError
 import ddt
-from __builtin__ import delattr
 from xmodule.modulestore.tests.mongo_connection import MONGO_PORT_NUM, MONGO_HOST
 
 log = logging.getLogger(__name__)
@@ -42,13 +41,13 @@ class TestContentstore(unittest.TestCase):
         Restores deprecated values
         """
         if cls.asset_deprecated is not None:
-            setattr(AssetLocator, 'deprecated', cls.asset_deprecated)
+            AssetLocator.deprecated = cls.asset_deprecated
         else:
-            delattr(AssetLocator, 'deprecated')
+            del AssetLocator.deprecated
         if cls.ssck_deprecated is not None:
-            setattr(CourseLocator, 'deprecated', cls.ssck_deprecated)
+            CourseLocator.deprecated = cls.ssck_deprecated
         else:
-            delattr(CourseLocator, 'deprecated')
+            del CourseLocator.deprecated
         return super(TestContentstore, cls).tearDownClass()
 
     def set_up_assets(self, deprecated):
@@ -60,8 +59,8 @@ class TestContentstore(unittest.TestCase):
         self.contentstore = MongoContentStore(HOST, DB, port=PORT)
         self.addCleanup(self.contentstore._drop_database)  # pylint: disable=protected-access
 
-        setattr(AssetLocator, 'deprecated', deprecated)
-        setattr(CourseLocator, 'deprecated', deprecated)
+        AssetLocator.deprecated = deprecated
+        CourseLocator.deprecated = deprecated
 
         self.course1_key = CourseLocator('test', 'asset_test', '2014_07')
         self.course2_key = CourseLocator('test', 'asset_test2', '2014_07')
