@@ -357,6 +357,18 @@ class TestMixedModuleStore(CommonMixedModuleStoreSetup):
             with self.assertRaises(DuplicateCourseError):
                 self.store.create_course('org_x', 'course_y', 'run_z', self.user_id)
 
+    @ddt.data(ModuleStoreEnum.Type.split, ModuleStoreEnum.Type.mongo)
+    def test_duplicate_course_error_with_different_case_ids(self, default_store):
+        """
+        Verify that course can not be created with same course_id with different case.
+        """
+        self._initialize_mixed(mappings={})
+        with self.store.default_store(default_store):
+            self.store.create_course('org_x', 'course_y', 'run_z', self.user_id)
+
+            with self.assertRaises(DuplicateCourseError):
+                self.store.create_course('ORG_X', 'COURSE_Y', 'RUN_Z', self.user_id)
+
     # Draft:
     #    problem: One lookup to locate an item that exists
     #    fake: one w/ wildcard version
@@ -1990,6 +2002,14 @@ class TestMixedModuleStore(CommonMixedModuleStoreSetup):
             assertProblemNameEquals(problem_new_name)
             # there should be no published problems with the old name
             assertNumProblems(problem_original_name, 0)
+
+        # verify branch setting is published-only in manager
+        with self.store.branch_setting(ModuleStoreEnum.Branch.published_only):
+            self.assertEquals(self.store.get_branch_setting(), ModuleStoreEnum.Branch.published_only)
+
+        # verify branch setting is draft-preferred in manager
+        with self.store.branch_setting(ModuleStoreEnum.Branch.draft_preferred):
+            self.assertEquals(self.store.get_branch_setting(), ModuleStoreEnum.Branch.draft_preferred)
 
     def verify_default_store(self, store_type):
         """

@@ -834,6 +834,9 @@ INSTALLED_APPS = (
     'openedx.core.djangoapps.coursetalk',  # not used in cms (yet), but tests run
     'xblock_config',
 
+    # Maintenance tools
+    'maintenance',
+
     # Tracking
     'track',
     'eventtracking.django.apps.EventTrackingConfig',
@@ -918,6 +921,7 @@ INSTALLED_APPS = (
     # other apps that are.  Django 1.8 wants to have imported models supported
     # by installed apps.
     'lms.djangoapps.verify_student',
+    'lms.djangoapps.grades',
 
     # Microsite configuration application
     'microsite_configuration',
