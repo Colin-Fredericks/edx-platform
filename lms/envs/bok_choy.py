@@ -90,6 +90,11 @@ XQUEUE_INTERFACE['url'] = 'http://localhost:8040'
 EDXNOTES_PUBLIC_API = 'http://localhost:8042/api/v1'
 EDXNOTES_INTERNAL_API = 'http://localhost:8042/api/v1'
 
+
+EDXNOTES_CONNECT_TIMEOUT = 10  # time in seconds
+EDXNOTES_READ_TIMEOUT = 10  # time in seconds
+
+
 NOTES_DISABLED_TABS = []
 
 # Silence noisy logs
@@ -124,14 +129,13 @@ FEATURES['ENABLE_TEAMS'] = True
 # Enable custom content licensing
 FEATURES['LICENSING'] = True
 
-# Enable persistent subsection grades, so that feature can be tested.
-FEATURES['ENABLE_SUBSECTION_GRADES_SAVED'] = True
-
 # Use the auto_auth workflow for creating users and logging them in
 FEATURES['AUTOMATIC_AUTH_FOR_TESTING'] = True
 
+# Open up endpoint for faking Software Secure responses
+FEATURES['ENABLE_SOFTWARE_SECURE_FAKE'] = True
+
 ########################### Entrance Exams #################################
-FEATURES['MILESTONES_APP'] = True
 FEATURES['ENTRANCE_EXAMS'] = True
 
 FEATURES['ENABLE_SPECIAL_EXAMS'] = True
@@ -173,6 +177,12 @@ SEARCH_ENGINE = "search.tests.mock_search_engine.MockSearchEngine"
 MOCK_SEARCH_BACKING_FILE = (
     TEST_ROOT / "index_file.dat"
 ).abspath()
+
+# Verify student settings
+VERIFY_STUDENT["SOFTWARE_SECURE"] = {
+    "API_ACCESS_KEY": "BBBBBBBBBBBBBBBBBBBB",
+    "API_SECRET_KEY": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+}
 
 # this secret key should be the same as cms/envs/bok_choy.py's
 SECRET_KEY = "very_secret_bok_choy_key"

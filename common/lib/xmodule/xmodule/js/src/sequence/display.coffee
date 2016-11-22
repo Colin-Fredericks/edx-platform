@@ -3,6 +3,7 @@ class @Sequence
     @updatedProblems = {}
     @requestToken = $(element).data('request-token')
     @el = $(element).find('.sequence')
+    @path = $('.path')
     @contents = @$('.seq_contents')
     @content_container = @$('#seq_content')
     @sr_container = @$('.sr-is-focusable')
@@ -44,23 +45,24 @@ class @Sequence
   hookUpContentStateChangeEvent: ->
     $('.problems-wrapper').bind(
       'contentChanged',
-      (event, problem_id, new_content_state) =>
-        @addToUpdatedProblems problem_id, new_content_state
+      (event, problem_id, new_content_state, new_state) =>
+        @addToUpdatedProblems problem_id, new_content_state, new_state
     )
 
-  addToUpdatedProblems: (problem_id, new_content_state) =>
+  addToUpdatedProblems: (problem_id, new_content_state, new_state) =>
     # Used to keep updated problem's state temporarily.
     # params:
     #   'problem_id' is problem id.
-    #   'new_content_state' is updated problem's state.
+    #   'new_content_state' is the updated content of the problem.
+    #   'new_state' is the updated state of the problem.
 
     # initialize for the current sequence if there isn't any updated problem
     # for this position.
     if not @anyUpdatedProblems @position
       @updatedProblems[@position] = {}
 
-    # Now, put problem content against problem id for current active sequence.
-    @updatedProblems[@position][problem_id] = new_content_state
+    # Now, put problem content and score against problem id for current active sequence.
+    @updatedProblems[@position][problem_id] = [new_content_state, new_state]
 
   anyUpdatedProblems:(position) ->
     # check for the updated problems for given sequence position.
@@ -98,18 +100,6 @@ class @Sequence
       new_progress = _this.mergeProgress progress, new_progress
 
     @progressTable[@position] = new_progress
-    @setProgress(new_progress, @link_for(@position))
-
-  setProgress: (progress, element) ->
-      # If progress is "NA", don't add any css class
-      element.removeClass('progress-none')
-             .removeClass('progress-some')
-             .removeClass('progress-done')
-
-      switch progress
-        when 'none' then element.addClass('progress-none')
-        when 'in_progress' then element.addClass('progress-some')
-        when 'done' then element.addClass('progress-done')
 
   enableButton: (button_class, button_action) ->
     @$(button_class).removeClass('disabled').removeAttr('disabled').click(button_action)
@@ -172,10 +162,15 @@ class @Sequence
 
       # update the data-attributes with latest contents only for updated problems.
       if @anyUpdatedProblems new_position
-        $.each @updatedProblems[new_position], (problem_id, latest_content) =>
+        $.each @updatedProblems[new_position], (problem_id, latest_data) =>
+          latest_content = latest_data[0]
+          latest_response = latest_data[1]
           @content_container
           .find("[data-problem-id='#{ problem_id }']")
           .data('content', latest_content)
+          .data('problem-score', latest_response.current_score)
+          .data('problem-total-possible', latest_response.total_possible)
+          .data('attempts-used', latest_response.attempts_used)
 
       XBlock.initializeBlocks(@content_container, @requestToken)
 
@@ -190,7 +185,7 @@ class @Sequence
       sequence_links = @content_container.find('a.seqnav')
       sequence_links.click @goto
 
-      @el.find('.path').text(@el.find('.nav-item.active').data('path'))
+      @path.text(@el.find('.nav-item.active').data('path'))
 
       @sr_container.focus()
 
@@ -215,7 +210,7 @@ class @Sequence
         widget_placement: widget_placement
 
       # On Sequence change, destroy any existing polling thread
-      # for queued submissions, see ../capa/display.coffee
+      # for queued submissions, see ../capa/display.js
       if window.queuePollerID
         window.clearTimeout(window.queuePollerID)
         delete window.queuePollerID

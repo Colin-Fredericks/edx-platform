@@ -1,3 +1,7 @@
+"""
+Helpers for courseware tests.
+"""
+import crum
 import json
 
 from django.contrib.auth.models import User
@@ -8,18 +12,6 @@ from django.test.client import RequestFactory
 from courseware.access import has_access
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from student.models import Registration
-
-
-def get_request_for_user(user):
-    """Create a request object for user."""
-    request = RequestFactory()
-    request.user = user
-    request.COOKIES = {}
-    request.META = {}
-    request.is_secure = lambda: True
-    request.get_host = lambda: "edx.org"
-    request.method = 'GET'
-    return request
 
 
 class LoginEnrollmentTestCase(TestCase):

@@ -93,13 +93,6 @@ ALTERNATE_QUEUES = [
     DEFAULT_PRIORITY_QUEUE.replace(QUEUE_VARIANT, alternate + '.')
     for alternate in ALTERNATE_QUEUE_ENVS
 ]
-CELERY_QUEUES.update(
-    {
-        alternate: {}
-        for alternate in ALTERNATE_QUEUES
-        if alternate not in CELERY_QUEUES.keys()
-    }
-)
 CELERY_ROUTES = "{}celery.Router".format(QUEUE_VARIANT)
 
 ############# NON-SECURE ENV CONFIG ##############################
@@ -215,6 +208,13 @@ if ENV_TOKENS.get('COMPREHENSIVE_THEME_DIR', None):
     COMPREHENSIVE_THEME_DIR = ENV_TOKENS.get('COMPREHENSIVE_THEME_DIR')
 
 COMPREHENSIVE_THEME_DIRS = ENV_TOKENS.get('COMPREHENSIVE_THEME_DIRS', COMPREHENSIVE_THEME_DIRS) or []
+
+# COMPREHENSIVE_THEME_LOCALE_PATHS contain the paths to themes locale directories e.g.
+# "COMPREHENSIVE_THEME_LOCALE_PATHS" : [
+#        "/edx/src/edx-themes/conf/locale"
+#    ],
+COMPREHENSIVE_THEME_LOCALE_PATHS = ENV_TOKENS.get('COMPREHENSIVE_THEME_LOCALE_PATHS', [])
+
 DEFAULT_SITE_THEME = ENV_TOKENS.get('DEFAULT_SITE_THEME', DEFAULT_SITE_THEME)
 ENABLE_COMPREHENSIVE_THEMING = ENV_TOKENS.get('ENABLE_COMPREHENSIVE_THEMING', ENABLE_COMPREHENSIVE_THEMING)
 
@@ -365,6 +365,18 @@ BROKER_URL = "{0}://{1}:{2}@{3}/{4}".format(CELERY_BROKER_TRANSPORT,
                                             CELERY_BROKER_HOSTNAME,
                                             CELERY_BROKER_VHOST)
 
+# Allow CELERY_QUEUES to be overwritten before adding alternates
+ENV_CELERY_QUEUES = ENV_TOKENS.get('CELERY_QUEUES', None)
+if ENV_CELERY_QUEUES:
+    CELERY_QUEUES = {queue: {} for queue in ENV_CELERY_QUEUES}
+CELERY_QUEUES.update(
+    {
+        alternate: {}
+        for alternate in ALTERNATE_QUEUES
+        if alternate not in CELERY_QUEUES.keys()
+    }
+)
+
 # Event tracking
 TRACKING_BACKENDS.update(AUTH_TOKENS.get("TRACKING_BACKENDS", {}))
 EVENT_TRACKING_BACKENDS['tracking_logs']['OPTIONS']['backends'].update(AUTH_TOKENS.get("EVENT_TRACKING_BACKENDS", {}))
@@ -455,3 +467,7 @@ PARTNER_SUPPORT_EMAIL = ENV_TOKENS.get('PARTNER_SUPPORT_EMAIL', PARTNER_SUPPORT_
 
 # Affiliate cookie tracking
 AFFILIATE_COOKIE_NAME = ENV_TOKENS.get('AFFILIATE_COOKIE_NAME', AFFILIATE_COOKIE_NAME)
+
+############## Settings for Studio Context Sensitive Help ##############
+
+DOC_LINK_BASE_URL = ENV_TOKENS.get('DOC_LINK_BASE_URL', DOC_LINK_BASE_URL)

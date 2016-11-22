@@ -2,11 +2,19 @@
 Tests for the score change signals defined in the courseware models module.
 """
 
+import re
+
+import ddt
 from django.test import TestCase
 from mock import patch, MagicMock
 
-from ..signals import submissions_score_set_handler, submissions_score_reset_handler
+from ..signals.handlers import (
+    enqueue_subsection_update,
+    submissions_score_set_handler,
+    submissions_score_reset_handler,
+)
 
+UUID_REGEX = re.compile(ur'%(hex)s{8}-%(hex)s{4}-%(hex)s{4}-%(hex)s{4}-%(hex)s{12}' % {'hex': u'[0-9a-f]'})
 
 SUBMISSION_SET_KWARGS = {
     'points_possible': 10,
@@ -24,6 +32,7 @@ SUBMISSION_RESET_KWARGS = {
 }
 
 
+@ddt.ddt
 class SubmissionSignalRelayTest(TestCase):
     """
     Tests to ensure that the courseware module correctly catches score_set and
@@ -37,10 +46,13 @@ class SubmissionSignalRelayTest(TestCase):
         Configure mocks for all the dependencies of the render method
         """
         super(SubmissionSignalRelayTest, self).setUp()
-        self.signal_mock = self.setup_patch('lms.djangoapps.grades.signals.SCORE_CHANGED.send', None)
+        self.signal_mock = self.setup_patch('lms.djangoapps.grades.signals.signals.PROBLEM_SCORE_CHANGED.send', None)
         self.user_mock = MagicMock()
         self.user_mock.id = 42
-        self.get_user_mock = self.setup_patch('lms.djangoapps.grades.signals.user_by_anonymous_id', self.user_mock)
+        self.get_user_mock = self.setup_patch(
+            'lms.djangoapps.grades.signals.handlers.user_by_anonymous_id',
+            self.user_mock
+        )
 
     def setup_patch(self, function_name, return_value):
         """
@@ -52,99 +64,79 @@ class SubmissionSignalRelayTest(TestCase):
         self.addCleanup(new_patch.stop)
         return mock
 
-    def test_score_set_signal_handler(self):
+    @ddt.data(
+        [submissions_score_set_handler, SUBMISSION_SET_KWARGS, 5, 10],
+        [submissions_score_reset_handler, SUBMISSION_RESET_KWARGS, 0, 0],
+    )
+    @ddt.unpack
+    def test_score_set_signal_handler(self, handler, kwargs, earned, possible):
         """
-        Ensure that, on receipt of a score_set signal from the Submissions API,
-        the courseware model correctly converts it to a score_changed signal
+        Ensure that on receipt of a score_(re)set signal from the Submissions API,
+        the signal handler correctly converts it to a PROBLEM_SCORE_CHANGED signal.
+
+        Also ensures that the handler calls user_by_anonymous_id correctly.
         """
-        submissions_score_set_handler(None, **SUBMISSION_SET_KWARGS)
+        handler(None, **kwargs)
         expected_set_kwargs = {
             'sender': None,
-            'points_possible': 10,
-            'points_earned': 5,
-            'user_id': 42,
+            'points_possible': possible,
+            'points_earned': earned,
+            'user_id': self.user_mock.id,
             'course_id': 'CourseID',
             'usage_id': 'i4x://org/course/usage/123456'
         }
         self.signal_mock.assert_called_once_with(**expected_set_kwargs)
+        self.get_user_mock.assert_called_once_with(kwargs['anonymous_user_id'])
 
-    def test_score_set_user_conversion(self):
+    @ddt.data(
+        [submissions_score_set_handler, SUBMISSION_SET_KWARGS],
+        [submissions_score_reset_handler, SUBMISSION_RESET_KWARGS]
+    )
+    @ddt.unpack
+    def test_score_set_missing_kwarg(self, handler, kwargs):
         """
-        Ensure that the score_set handler properly calls the
-        user_by_anonymous_id method to convert from an anonymized ID to a user
-        object
-        """
-        submissions_score_set_handler(None, **SUBMISSION_SET_KWARGS)
-        self.get_user_mock.assert_called_once_with('anonymous_id')
-
-    def test_score_set_missing_kwarg(self):
-        """
-        Ensure that, on receipt of a score_set signal from the Submissions API
+        Ensure that, on receipt of a score_(re)set signal from the Submissions API
         that does not have the correct kwargs, the courseware model does not
         generate a signal.
         """
-        for missing in SUBMISSION_SET_KWARGS:
-            kwargs = SUBMISSION_SET_KWARGS.copy()
-            del kwargs[missing]
+        for missing in kwargs:
+            local_kwargs = kwargs.copy()
+            del local_kwargs[missing]
 
-            submissions_score_set_handler(None, **kwargs)
+            with self.assertRaises(KeyError):
+                handler(None, **local_kwargs)
             self.signal_mock.assert_not_called()
 
-    def test_score_set_bad_user(self):
+    @ddt.data(
+        [submissions_score_set_handler, SUBMISSION_SET_KWARGS],
+        [submissions_score_reset_handler, SUBMISSION_RESET_KWARGS]
+    )
+    @ddt.unpack
+    def test_score_set_bad_user(self, handler, kwargs):
         """
-        Ensure that, on receipt of a score_set signal from the Submissions API
+        Ensure that, on receipt of a score_(re)set signal from the Submissions API
         that has an invalid user ID, the courseware model does not generate a
         signal.
         """
-        self.get_user_mock = self.setup_patch('lms.djangoapps.grades.signals.user_by_anonymous_id', None)
-        submissions_score_set_handler(None, **SUBMISSION_SET_KWARGS)
+        self.get_user_mock = self.setup_patch('lms.djangoapps.grades.signals.handlers.user_by_anonymous_id', None)
+        handler(None, **kwargs)
         self.signal_mock.assert_not_called()
 
-    def test_score_reset_signal_handler(self):
-        """
-        Ensure that, on receipt of a score_reset signal from the Submissions
-        API, the courseware model correctly converts it to a score_changed
-        signal
-        """
-        submissions_score_reset_handler(None, **SUBMISSION_RESET_KWARGS)
-        expected_reset_kwargs = {
-            'sender': None,
-            'points_possible': 0,
-            'points_earned': 0,
-            'user_id': 42,
-            'course_id': 'CourseID',
-            'usage_id': 'i4x://org/course/usage/123456'
-        }
-        self.signal_mock.assert_called_once_with(**expected_reset_kwargs)
-
-    def test_score_reset_user_conversion(self):
-        """
-        Ensure that the score_reset handler properly calls the
-        user_by_anonymous_id method to convert from an anonymized ID to a user
-        object
-        """
-        submissions_score_reset_handler(None, **SUBMISSION_RESET_KWARGS)
-        self.get_user_mock.assert_called_once_with('anonymous_id')
-
-    def test_score_reset_missing_kwarg(self):
-        """
-        Ensure that, on receipt of a score_reset signal from the Submissions API
-        that does not have the correct kwargs, the courseware model does not
-        generate a signal.
-        """
-        for missing in SUBMISSION_RESET_KWARGS:
-            kwargs = SUBMISSION_RESET_KWARGS.copy()
-            del kwargs[missing]
-
-            submissions_score_reset_handler(None, **kwargs)
-            self.signal_mock.assert_not_called()
-
-    def test_score_reset_bad_user(self):
-        """
-        Ensure that, on receipt of a score_reset signal from the Submissions API
-        that has an invalid user ID, the courseware model does not generate a
-        signal.
-        """
-        self.get_user_mock = self.setup_patch('lms.djangoapps.grades.signals.user_by_anonymous_id', None)
-        submissions_score_reset_handler(None, **SUBMISSION_RESET_KWARGS)
-        self.signal_mock.assert_not_called()
+    @patch('lms.djangoapps.grades.signals.handlers.log.info')
+    def test_problem_score_changed_logging(self, mocklog):
+        enqueue_subsection_update(
+            sender='test',
+            user_id=1,
+            course_id=u'course-v1:edX+Demo_Course+DemoX',
+            usage_id=u'block-v1:block-key',
+        )
+        log_statement = mocklog.call_args[0][0]
+        log_statement = UUID_REGEX.sub(u'*UUID*', log_statement)
+        self.assertEqual(
+            log_statement,
+            (
+                u'Grades: Request async calculation of subsection grades with args: '
+                u'course_id:course-v1:edX+Demo_Course+DemoX, usage_id:block-v1:block-key, '
+                u'user_id:1. Task [*UUID*]'
+            )
+        )

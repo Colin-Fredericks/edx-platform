@@ -5,7 +5,9 @@
 <%page expression_filter="h"/>
 <%inherit file="../main.html" />
 <%namespace name='static' file='../static_content.html'/>
+<%def name="online_help_token()"><% return "discussions" %></%def>
 <%!
+import json
 from django.utils.translation import ugettext as _
 from django.template.defaultfilters import escapejs
 from django.core.urlresolvers import reverse
@@ -48,23 +50,24 @@ DiscussionBoardFactory({
 <%block name="content">
 <section class="discussion discussion-board container" id="discussion-container"
          data-course-id="${course_id}"
-         data-user-create-comment="${can_create_comment}"
-         data-user-create-subcomment="${can_create_subcomment}"
+         data-user-create-comment="${json.dumps(can_create_comment)}"
+         data-user-create-subcomment="${json.dumps(can_create_subcomment)}"
          data-read-only="false"
          data-sort-preference="${sort_preference}"
-         data-flag-moderator="${flag_moderator}"
+         data-flag-moderator="${json.dumps(flag_moderator)}"
          data-user-cohort-id="${user_cohort}">
     <header class="page-header has-secondary">
         ## Breadcrumb navigation
         <div class="page-header-main">
-            <div class="sr-is-focusable" tabindex="-1"></div>
-            <div class="has-breadcrumbs"></div>
+            <nav aria-label="${_('Discussions')}" class="sr-is-focusable" tabindex="-1">
+                <div class="has-breadcrumbs"></div>
+            </nav>
         </div>
         <div class="page-header-secondary">
             ## Add Post button
             % if has_permission(user, 'create_thread', course.id):
             <div class="form-actions">
-                <button class="btn btn-small new-post-btn">${_("Add a Post")}</button>
+                <button class="btn-brand btn-small new-post-btn">${_("Add a Post")}</button>
             </div>
             % endif
             ## Search box
@@ -74,6 +77,8 @@ DiscussionBoardFactory({
     <div class="page-content">
         <div class="discussion-body layout layout-1t2t">
             <aside class="forum-nav layout-col layout-col-a" role="complementary" aria-label="${_("Discussion thread list")}">
+                <%include file="_filter_dropdown.html" />
+                <div class="discussion-thread-list-container"></div>
             </aside>
 
             <main id="main" aria-label="Content" tabindex="-1" class="discussion-column layout-col layout-col-b">

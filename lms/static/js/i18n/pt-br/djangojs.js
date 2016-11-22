@@ -40,18 +40,6 @@
       "%(memberCount)s / %(maxMemberCount)s membros"
     ], 
     "%(new_item_message)s": "%(new_item_message)s", 
-    "%(numResponses)s other response": [
-      "outra %(numResponses)s resposta", 
-      "outras %(numResponses)s respostas"
-    ], 
-    "%(numResponses)s response": [
-      "%(numResponses)s resposta", 
-      "%(numResponses)s respostas"
-    ], 
-    "%(numVotes)s Vote": [
-      "%(numVotes)s Votos", 
-      "%(numVotes)s Votos"
-    ], 
     "%(num_questions)s question": [
       "%(num_questions)s quest\u00e3o", 
       "%(num_questions)s quest\u00f5es"
@@ -70,10 +58,6 @@
       "%(team_count)s equipes"
     ], 
     "%(type)s Component Template Menu": "%(type)s Menu de Modelos de Componentes", 
-    "%(unread_count)s new comment": [
-      "%(unread_count)s novo coment\u00e1rio", 
-      "%(unread_count)s novos coment\u00e1rios"
-    ], 
     "%(value)s hour": [
       "%(value)s hora", 
       "%(value)s horas"
@@ -108,14 +92,6 @@
       "%s resultado", 
       "%s resultados"
     ], 
-    "(%(earned)s/%(possible)s point)": [
-      "(%(earned)s/%(possible)s ponto)", 
-      "(%(earned)s/%(possible)s pontos)"
-    ], 
-    "(%(num_points)s point possible)": [
-      "(%(num_points) ponto poss\u00edvel)", 
-      "(%(num_points)s pontos poss\u00edveis)"
-    ], 
     "(Add signatories for a certificate)": "(Adicionar assinaturas para um certificado)", 
     "(Caption will be displayed when you start playing the video.)": "(A legenda aparecer\u00e1 quando voc\u00ea reproduzir o v\u00eddeo.)", 
     "(Required Field)": "(Campo Obrigat\u00f3rio)", 
@@ -124,8 +100,6 @@
       "(cont\u00e9m %(student_count)s alunos)"
     ], 
     "- Sortable": "- Classific\u00e1veis", 
-    "<button data-provider=\"%s\" data-course-key=\"%s\" data-username=\"%s\" class=\"complete-course\" onClick=completeOrder(this)>%s</button>": "<button data-provider=\"%s\" data-course-key=\"%s\" data-username=\"%s\" class=\"complete-course\" onClick=completeOrder(this)>%s</button>", 
-    "<img src='%s' alt='%s'></image>": "<img src='%s' alt='%s'></image>", 
     "A driver's license, passport, or government-issued ID with your name and photo.": "Uma carteira de motorista, um passaporte ou um documento de identidade oficial com o seu nome e foto.", 
     "A driver's license, passport, or other government-issued ID with your name and photo": "Uma carteira de motorista, um passaporte ou outro documento de identidade oficial com o seu nome e foto", 
     "A list of courses you have just enrolled in as a verified student": "Lista de cursos para quais voc\u00ea se inscreveu como um aluno verificado", 
@@ -225,8 +199,6 @@
     "Anchors": "\u00c2ncoras", 
     "Annotation": "Anota\u00e7\u00e3o", 
     "Annotation Text": "Texto da anota\u00e7\u00e3o", 
-    "Answer hidden": "Resposta ocultada", 
-    "Answer:": "Resposta:", 
     "Are you having trouble finding a team to join?": "Voc\u00ea est\u00e1 com problemas para encontrar uma equipe para fazer parte ?", 
     "Are you sure you want to delete this comment?": "Tem certeza de que deseja apagar este coment\u00e1rio?", 
     "Are you sure you want to delete this page? This action cannot be undone.": "Voc\u00ea tem certeza que quer apagar esta p\u00e1gina? Esta a\u00e7\u00e3o n\u00e3o pode ser desfeita.", 
@@ -271,8 +243,6 @@
     "Bulk Exceptions": "Exce\u00e7\u00f5es em massa", 
     "Bullet list": "Marcadores", 
     "Bulleted List (Ctrl+U)": "Lista com marcadores (Ctrl+U)", 
-    "By: Community TA": "Por: Comunidade TA", 
-    "By: Staff": "Por: Equipe", 
     "Can we match the photo you took with the one on your ID?": "Podemos comparar a foto que voc\u00ea tirou com a do seu documento de identifica\u00e7\u00e3o?", 
     "Cancel": "Cancelar", 
     "Cancel enrollment code": "Cancelar c\u00f3digo de matr\u00edcula", 
@@ -508,7 +478,6 @@
     "Edit Membership": "Editar assinatura.", 
     "Edit Team": "Editar equipe", 
     "Edit Your Name": "Edite o seu nome", 
-    "Edit post title": "Editar t\u00edtulo da publica\u00e7\u00e3o", 
     "Edit the name": "Editar nome", 
     "Edit this certificate?": "Gostaria de editar este certificado?", 
     "Editable": "Edit\u00e1vel", 
@@ -548,7 +517,6 @@
     "Enter the page number you'd like to quickly navigate to.": "Entre com o n\u00famero da p\u00e1gina que voc\u00ea gostaria de acessar rapidamente", 
     "Enter the username or email address of each learner that you want to add as an exception.": "Informe o nome de usu\u00e1rio ou endere\u00e7o de e-mail de cada aluno que voc\u00ea deseja adicionar como uma exce\u00e7\u00e3o.", 
     "Enter username or email": "Digite um nome de usu\u00e1rio ou email", 
-    "Enter your question or comment": "Insira sua pergunta ou coment\u00e1rio", 
     "Entrance exam attempts is being reset for student '{student_id}'.": "Zerando n\u00famero de tentativas de Exame de Admiss\u00e3o para o aluno '{student_id}'.", 
     "Entrance exam state is being deleted for student '{student_id}'.": "O Exame de admiss\u00e3o do aluno '{student_id}' est\u00e1 sendo apagado.", 
     "Error": "Erro", 
@@ -600,9 +568,6 @@
     "Explain if other.": "Explique se outro", 
     "Explicitly Hiding from Students": "Escondendo explicitamente dos alunos", 
     "Explore your course!": "Explore seu curso!", 
-    "Failed to delete student state.": "Falha ao excluir o status do aluno.", 
-    "Failed to rescore problem.": "Falha ao reavaliar o problema.", 
-    "Failed to reset attempts.": "Falha ao zerar tentativas.", 
     "File": "Arquivo", 
     "File Name": "Nome do arquivo", 
     "File format not supported. Please upload a file with a {file_extension} extension.": "Formato de arquivo n\u00e3o permitido. Por favor, carregue um arquivo com uma extens\u00e3o {file_extension}.", 
@@ -610,7 +575,6 @@
     "File {filename} exceeds maximum size of {maxFileSizeInMBs} MB": "O arquivo {filename} excede o tamanho m\u00e1ximo de {maxFileSizeInMBs} MB", 
     "Files must be in JPEG or PNG format.": "Os arquivos devem estar nos formatos JPEG ou PNG.", 
     "Fill browser": "Tela cheia", 
-    "Filter topics": "Filtrar t\u00f3picos", 
     "Financial Assistance": "Assist\u00eancia Financeira", 
     "Financial Assistance Application": "Aplica\u00e7\u00e3o de assist\u00eancia financeira", 
     "Find": "Encontrar", 
@@ -678,7 +642,6 @@
     "Height": "Altura", 
     "Help other learners decide whether to join your team by specifying some characteristics for your team. Choose carefully, because fewer people might be interested in joining your team if it seems too restrictive.": "Ajude outros estudantes decidir se entram em sua equipe especificando algumas caracter\u00edsticas dela. Escolha com aten\u00e7\u00e3o porque menos pessoas se interessar\u00e3o em entrar em sua equipe se ela parecer muito restritiva.", 
     "Hide Annotations": "Ocultar anota\u00e7\u00f5es ", 
-    "Hide Answer": "Ocultar resposta", 
     "Hide Deprecated Settings": "Ocultar configura\u00e7\u00f5es obsoletas", 
     "Hide Discussion": "Ocultar discuss\u00e3o", 
     "Hide Previews": "Ocultar Pr\u00e9-visualiza\u00e7\u00f5es", 
@@ -780,8 +743,6 @@
     "Live view of webcam": "Visualizar webcam ao vivo", 
     "Load Another File": "Carregar outro arquivo", 
     "Load all responses": "Carregar todas as respostas", 
-    "Load more": "Carregar mais", 
-    "Load next %(numResponses)s responses": "Carregar as pr\u00f3ximas %(numResponses)s respostas", 
     "Load next %(num_items)s result": [
       "Carregar pr\u00f3ximo %(num_items)s resultado", 
       "Carregar pr\u00f3ximos %(num_items)s resultados"
@@ -858,7 +819,6 @@
     "No receipt available": "Recibo n\u00e3o dispon\u00edvel", 
     "No results": "Sem resultados", 
     "No results found for \"%(query_string)s\". Please try searching again.": "Nenhum resultado foi encontrado para \"%(query_string)s\". Tente novamente.", 
-    "No results found for %(original_query)s. Showing results for %(suggested_query)s.": "N\u00e3o h\u00e1 resultados para %(original_query)s. Exibindo resultados para %(suggested_query)s.", 
     "No sources": "Sem fontes", 
     "No tasks currently running.": "N\u00e3o h\u00e1 nenhuma tarefa em andamento", 
     "No threads matched your query.": "N\u00e3o houveram t\u00f3picos correspondentes \u00e0 sua sele\u00e7\u00e3o", 
@@ -1088,7 +1048,6 @@
     "Short explanation": "Explica\u00e7\u00e3o resumida", 
     "Show All": "Mostrar todos", 
     "Show Annotations": "Exibir anota\u00e7\u00f5es", 
-    "Show Answer": "Exibir resposta", 
     "Show Comment (%(num_comments)s)": [
       "Mostrar Coment\u00e1rios (%(num_comments)s)", 
       "Mostrar Coment\u00e1rios (%(num_comments)s)"
@@ -1100,12 +1059,7 @@
     "Show invisible characters": "Exibir caracteres invis\u00edveis", 
     "Show me other ways to sign in or register": "Mostrar outras formas de entrada ou cadastro", 
     "Show notes": "Exibir anota\u00e7\u00f5es", 
-    "Show posts by %(username)s.": "Exibir publica\u00e7\u00f5es de %(username)s.", 
     "Showing all responses": "Exibindo todas as respostas", 
-    "Showing first response": [
-      "Exibindo a primeira resposta", 
-      "Exibindo as primeiras %(numResponses)s respostas"
-    ], 
     "Sign in": "Entrar", 
     "Sign in here using your email address and password, or use one of the providers listed below.": "Entre utilizando o seu endere\u00e7o de e-mail e senha, ou utilize um dos provedores listados abaixo.", 
     "Sign in here using your email address and password.": "Entre usando o seu endere\u00e7o de e-mail ou senha.", 
@@ -1148,7 +1102,6 @@
     "Starts: %(start_date)s": "In\u00edcio: %(start_date)s", 
     "State": "Status", 
     "Status": "Status", 
-    "Status: unsubmitted": "Status: n\u00e3o enviado", 
     "Strikethrough": "Tachado", 
     "Student": "Aluno", 
     "Student username/email field is required and can not be empty. ": "Campo de nome do usu\u00e1rio/e-mail do estudante \u00e9 obrigat\u00f3rio e n\u00e3o pode ficar vazio.", 
@@ -1467,8 +1420,6 @@
     "We had some trouble marking this response as an answer.  Please try again.": "Houve um problema ao marcar a sua mensagem como resposta. Por favor tente novamente.", 
     "We had some trouble marking this response endorsed.  Please try again.": "Houve um problema ao marcar esta mensagem como endossada. Por favor tente novamente.", 
     "We had some trouble pinning this thread. Please try again.": "Houve um problema ao marcar este seguimento. Por favor tente novamente.", 
-    "We had some trouble processing your request. Please ensure you have copied any unsaved work and then reload the page.": "Houve um problema ao processar seu pedido. Por favor, certifique-se de ter copiado qualquer trabalho n\u00e3o salvo e, em seguida, recarregue a p\u00e1gina.", 
-    "We had some trouble processing your request. Please try again.": "Houve algum problema ao processar a sua solicita\u00e7\u00e3o. Por favor, tente novamente.", 
     "We had some trouble removing this endorsement.  Please try again.": "Houve um problema ao remover este aval. Por favor tente novamente.", 
     "We had some trouble removing this response as an answer.  Please try again.": "Houve um problema ao desmarcar esta mensagem como resposta. Por favor tente novamente.", 
     "We had some trouble removing your flag on this post.  Please try again.": "Ocorreu um problema ao remover sua identifica\u00e7\u00e3o desta publica\u00e7\u00e3o. Tente novamente.", 
@@ -1597,7 +1548,6 @@
     "close": "fechar", 
     "content group": "grupo de conte\u00fado", 
     "correct": "correta", 
-    "country": "Pa\u00eds", 
     "course id": "Identifica\u00e7\u00e3o do curso", 
     "delete chapter": "excluir cap\u00edtulo", 
     "delete group": "excluir grupo", 
@@ -1612,20 +1562,13 @@
     "endorsed %(time_ago)s by %(user)s": "aprovado %(time_ago)s por %(user)s", 
     "enter code here": "insira o c\u00f3digo aqui", 
     "enter link description here": "digite a descri\u00e7\u00e3o do link aqui", 
-    "error.message": "mensagem.erro", 
-    "fmt": "fmt", 
-    "fmts": "fmts", 
     "follow this post": "seguir esta publica\u00e7\u00e3o", 
-    "formLabel": "formLabel", 
-    "gettext(": "gettext(", 
     "group configuration": "configura\u00e7\u00f5es de grupo", 
     "incorrect": "incorreta", 
-    "language": "Idioma", 
     "last activity": "\u00daltima atividade", 
     "less than a minute": "menos de um minuto", 
     "marked as answer %(time_ago)s": "marcado como resposta %(time_ago)s", 
     "marked as answer %(time_ago)s by %(user)s": "marcado como resposta %(time_ago)s por %(user)s", 
-    "message": "mensagem", 
     "name": "nome", 
     "off": "Desligado", 
     "on": "Ligado", 
@@ -1642,18 +1585,11 @@
     "remove": "remover", 
     "remove all": "remover todos", 
     "section": "se\u00e7\u00e3o", 
-    "section.title": "section.title", 
     "send an email message to {email}": "enviar uma mensagem para {email}", 
-    "status": "status", 
     "strong text": "texto forte", 
     "subsection": "subse\u00e7\u00e3o", 
     "team count": "Contagem de equipes", 
-    "there is currently %(numVotes)s vote": [
-      "atualmente %(numVotes)s vote", 
-      "existem atualmente %(numVotes)s votos"
-    ], 
     "timed": "Cronometrado.", 
-    "title": "t\u00edtulo", 
     "unanswered question": "quest\u00e3o n\u00e3o respondida", 
     "unit": "unidade", 
     "upload a PDF file or provide the path to a Studio asset file": "envie um arquivo PDF ou forne\u00e7a o caminho para um arquivo de ativo de Studio", 

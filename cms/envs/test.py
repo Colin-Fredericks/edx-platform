@@ -322,9 +322,6 @@ SEARCH_ENGINE = "search.tests.mock_search_engine.MockSearchEngine"
 # teams feature
 FEATURES['ENABLE_TEAMS'] = True
 
-# Enable persistent subsection grades, so that feature can be tested.
-FEATURES['ENABLE_SUBSECTION_GRADES_SAVED'] = True
-
 # Dummy secret key for dev/test
 SECRET_KEY = '85920908f28904ed733fe576320db18cabd7b6cd'
 
@@ -334,7 +331,3 @@ FEATURES['CUSTOM_COURSES_EDX'] = True
 
 # API access management -- needed for simple-history to run.
 INSTALLED_APPS += ('openedx.core.djangoapps.api_admin',)
-
-# Set the default Oauth2 Provider Model so that migrations can run in
-# verbose mode
-OAUTH2_PROVIDER_APPLICATION_MODEL = 'oauth2_provider.Application'

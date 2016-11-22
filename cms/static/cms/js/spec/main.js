@@ -32,8 +32,7 @@
             'jquery.simulate': 'xmodule_js/common_static/js/vendor/jquery.simulate',
             'datepair': 'xmodule_js/common_static/js/vendor/timepicker/datepair',
             'date': 'xmodule_js/common_static/js/vendor/date',
-            'moment': 'xmodule_js/common_static/js/vendor/moment.min',
-            'moment-with-locales': 'xmodule_js/common_static/js/vendor/moment-with-locales.min',
+            moment: 'common/js/vendor/moment-with-locales',
             'text': 'xmodule_js/common_static/js/vendor/requirejs/text',
             'underscore': 'common/js/vendor/underscore',
             'underscore.string': 'common/js/vendor/underscore.string',
@@ -56,7 +55,7 @@
             'domReady': 'xmodule_js/common_static/js/vendor/domReady',
             'URI': 'xmodule_js/common_static/js/vendor/URI.min',
             'mock-ajax': 'xmodule_js/common_static/js/vendor/mock-ajax',
-            mathjax: '//cdn.mathjax.org/mathjax/2.6-latest/MathJax.js?config=TeX-MML-AM_SVG&delayStartupUntil=configured',   // eslint-disable-line max-len
+            mathjax: '//cdn.mathjax.org/mathjax/2.7-latest/MathJax.js?config=TeX-MML-AM_SVG&delayStartupUntil=configured',   // eslint-disable-line max-len
             'youtube': '//www.youtube.com/player_api?noext',
             'coffee/src/ajax_prefix': 'xmodule_js/common_static/coffee/src/ajax_prefix',
             'js/spec/test_utils': 'js/spec/test_utils'

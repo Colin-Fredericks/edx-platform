@@ -4,6 +4,8 @@ from bok_choy.javascript import wait_for_js
 from bok_choy.page_object import PageObject
 from bok_choy.promise import EmptyPromise, Promise
 
+from common.test.acceptance.tests.helpers import is_focused_on_element
+
 from common.test.acceptance.pages.lms.course_page import CoursePage
 
 
@@ -108,6 +110,12 @@ class DiscussionThreadPage(PageObject, DiscussionPageMixin):
         """Returns true if the add response button is visible, false otherwise"""
         return self.is_element_visible(".add-response-btn")
 
+    def has_discussion_reply_editor(self):
+        """
+        Returns true if the discussion reply editor is is visible
+        """
+        return self.is_element_visible(".discussion-reply-new")
+
     def click_add_response_button(self):
         """
         Clicks the add response button and ensures that the response text
@@ -152,6 +160,13 @@ class DiscussionThreadPage(PageObject, DiscussionPageMixin):
         with self.secondary_action_menu_open(".response_{} .discussion-response".format(response_id)):
             return self.is_element_visible(".response_{} .discussion-response .action-edit".format(response_id))
 
+    def is_response_deletable(self, response_id):
+        """
+        Returns true if the delete response button is present, false otherwise
+        """
+        with self.secondary_action_menu_open(".response_{} .discussion-response".format(response_id)):
+            return self.is_element_visible(".response_{} .discussion-response .action-delete".format(response_id))
+
     def get_response_body(self, response_id):
         return self._get_element_text(".response_{} .response-body".format(response_id))
 
@@ -175,11 +190,10 @@ class DiscussionThreadPage(PageObject, DiscussionPageMixin):
     def vote_response(self, response_id):
         current_count = self._get_element_text(".response_{} .discussion-response .action-vote .vote-count".format(response_id))
         self._find_within(".response_{} .discussion-response .action-vote".format(response_id)).first.click()
-        self.wait_for_ajax()
-        EmptyPromise(
+        self.wait_for(
             lambda: current_count != self.get_response_vote_count(response_id),
-            "Response is voted"
-        ).fulfill()
+            description="Vote updated for {response_id}".format(response_id=response_id)
+        )
 
     def cannot_vote_response(self, response_id):
         """Assert that the voting button is not visible on this response"""
@@ -429,12 +443,6 @@ class DiscussionTabSingleThreadPage(CoursePage):
         with self.thread_page.secondary_action_menu_open(".thread-main-wrapper"):
             self._find_within(".thread-main-wrapper .action-close").first.click()
 
-    def is_focused_on_element(self, selector):
-        """
-        Check if the focus is on element
-        """
-        return self.browser.execute_script("return $('{}').is(':focus')".format(selector))
-
     def _thread_is_rendered_successfully(self, thread_id):
         return self.q(css=".discussion-article[data-id='{}']".format(thread_id)).visible
 
@@ -455,15 +463,6 @@ class DiscussionTabSingleThreadPage(CoursePage):
         Count the number of threads available on page.
         """
         return len(self.q(css=".forum-nav-thread").results) == thread_count
-
-    def check_focus_is_set(self, selector):
-        """
-        Check focus is set
-        """
-        EmptyPromise(
-            lambda: self.is_focused_on_element(selector),
-            "Focus is on other element"
-        ).fulfill()
 
 
 class InlineDiscussionPage(PageObject):
@@ -562,14 +561,14 @@ class InlineDiscussionThreadPage(DiscussionThreadPage):
         """
         Check if selector is focused
         """
-        return self.browser.execute_script("return $('{}').is(':focus')".format(selector))
+        return is_focused_on_element(self.browser, selector)
 
 
 class DiscussionUserProfilePage(CoursePage):
 
     TEXT_NEXT = u'Next >'
     TEXT_PREV = u'< Previous'
-    PAGING_SELECTOR = "a.discussion-pagination[data-page-number]"
+    PAGING_SELECTOR = ".discussion-pagination[data-page-number]"
 
     def __init__(self, browser, course_id, user_id, username, page=1):
         super(DiscussionUserProfilePage, self).__init__(browser, course_id)
@@ -666,6 +665,10 @@ class DiscussionUserProfilePage(CoursePage):
         self.wait_for_page()
         self.q(css='.learner-profile-link').first.click()
 
+    def get_user_roles(self):
+        """Get user roles"""
+        return self.q(css='.sidebar-user-roles').text[0]
+
 
 class DiscussionTabHomePage(CoursePage, DiscussionPageMixin):
 
@@ -699,7 +702,7 @@ class DiscussionTabHomePage(CoursePage, DiscussionPageMixin):
             return self.q(css=".search-alert").filter(lambda elem: text in elem.text)
 
         for alert_id in _match_messages(text).attrs("id"):
-            self.q(css="{}#{} a.dismiss".format(self.ALERT_SELECTOR, alert_id)).click()
+            self.q(css="{}#{} .dismiss".format(self.ALERT_SELECTOR, alert_id)).click()
         EmptyPromise(
             lambda: _match_messages(text).results == [],
             "waiting for dismissed alerts to disappear"
@@ -746,3 +749,11 @@ class DiscussionTabHomePage(CoursePage, DiscussionPageMixin):
         """
         self.wait_for_element_visibility(".wmd-preview > *", "WMD preview pane has contents", timeout=10)
         return self.q(css=".wmd-preview").html[0]
+
+    def get_new_post_preview_text(self):
+        """
+        Get the rendered preview of the contents of the Discussions new post editor
+        Waits for content to appear, as the preview is triggered on debounced/delayed onchange
+        """
+        self.wait_for_element_visibility(".wmd-preview > div", "WMD preview pane has contents", timeout=10)
+        return self.q(css=".wmd-preview").text[0]
