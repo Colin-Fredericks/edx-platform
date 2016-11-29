@@ -25,7 +25,7 @@ from xmodule import course_metadata_utils, block_metadata_utils
 from xmodule.course_module import CourseDescriptor, DEFAULT_START_DATE
 from xmodule.error_module import ErrorDescriptor
 from xmodule.modulestore.django import modulestore
-from xmodule_django.models import CourseKeyField, UsageKeyField
+from openedx.core.djangoapps.xmodule_django.models import CourseKeyField, UsageKeyField
 
 log = logging.getLogger(__name__)
 
@@ -357,7 +357,6 @@ class CourseOverview(TimeStampedModel):
         """
         Returns True if the course starts with-in given number of days otherwise returns False.
         """
-
         return course_metadata_utils.course_starts_within(self.start, days)
 
     def start_datetime_text(self, format_string="SHORT_DATE", time_zone=utc):
@@ -389,6 +388,7 @@ class CourseOverview(TimeStampedModel):
     def end_datetime_text(self, format_string="SHORT_DATE", time_zone=utc):
         """
         Returns the end date or datetime for the course formatted as a string.
+
         """
         return course_metadata_utils.course_end_datetime_text(
             self.end,

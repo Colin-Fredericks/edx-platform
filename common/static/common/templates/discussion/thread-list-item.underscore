@@ -1,5 +1,5 @@
 <li data-id="<%- id %>" class="forum-nav-thread<% if (neverRead) { %> never-read<% } %>">
-  <a href="#" class="forum-nav-thread-link">
+  <a href="<%- threadUrl %>" class="forum-nav-thread-link">
     <div class="forum-nav-thread-wrapper-0">
       <%
       var icon_class, sr_text;
@@ -21,6 +21,9 @@
       <span class="icon fa <%= icon_class %>" aria-hidden="true"></span>
     </div><div class="forum-nav-thread-wrapper-1">
       <span class="forum-nav-thread-title"><%- title %></span>
+      <% if (showThreadPreview){ %>
+        <div class="thread-preview-body"><%- threadPreview %></div>
+      <% } %>
       <% if(typeof(subscribed) === "undefined") { var subscribed = null; } %>
       <% if(pinned || subscribed || staff_authored || community_ta_authored) { %>
         <ul class="forum-nav-thread-labels">

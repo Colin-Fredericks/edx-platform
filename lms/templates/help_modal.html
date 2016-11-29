@@ -15,10 +15,10 @@ from xmodule.tabs import CourseTabList
 % if settings.FEATURES.get('ENABLE_FEEDBACK_SUBMISSION', False):
 
 <div class="help-tab">
-  <a href="#help-modal" rel="leanModal" role="button">${_("Help")}</a>
+  <a href="#help-modal" rel="leanModal" role="button">${_("Support")}</a>
 </div>
 
-<section id="help-modal" class="modal" aria-hidden="true" role="dialog" tabindex="-1" aria-label="${_("{platform_name} Help").format(platform_name=static.get_platform_name())}">
+<section id="help-modal" class="modal" aria-hidden="true" role="dialog" tabindex="-1" aria-label="${_("{platform_name} Support").format(platform_name=static.get_platform_name())}">
   <div class="inner-wrapper">
     ## TODO: find a way to refactor this
     <button class="close-modal" tabindex="0">
@@ -32,7 +32,7 @@ from xmodule.tabs import CourseTabList
 
         <header>
           <h2>
-        ${Text(_('{platform_name} Help')).format(
+        ${Text(_('{platform_name} Support')).format(
             platform_name=HTML(u'<span class="edx">{}</span>').format(static.get_platform_name())
         )}
           </h2>
@@ -121,24 +121,13 @@ from xmodule.tabs import CourseTabList
           <hr>
         </header>
 
-        <%
-          dst = datetime.now(pytz.utc).astimezone(pytz.timezone("America/New_York")).dst()
-          if dst:
-            open_time = "13:00"
-            close_time = "21:00"
-          else:
-            open_time = "14:00"
-            close_time = "22:00"
-        %>
         <p>
         ${Text(_(
             'Thank you for your inquiry or feedback.  We typically respond to a request '
-            'within one business day (Monday to Friday, {open_time} UTC to {close_time} UTC.) In the meantime, please '
+            'within one business day, Monday to Friday.  In the meantime, please '
             'review our {link_start}detailed FAQs{link_end} where most questions have '
             'already been answered.'
         )).format(
-            open_time=open_time,
-            close_time=close_time,
             link_start=HTML('<a href="{}" target="_blank" id="success-feedback-faq-link">').format(marketing_link('FAQ')),
             link_end=HTML('</a>')
         )}
@@ -148,14 +137,11 @@ from xmodule.tabs import CourseTabList
 </section>
 
 <script type="text/javascript">
-(function() {
+$(document).ready(function() {
     var $helpModal = $("#help-modal"),
         $closeButton = $("#help-modal .close-modal"),
         $leanOverlay = $("#lean_overlay"),
         $feedbackForm = $("#feedback_form"),
-        focusableChildren,
-        numElements,
-        currentIndex,
         onModalClose = function() {
             $closeButton.off("click");
             $leanOverlay.off("click");
@@ -163,64 +149,13 @@ from xmodule.tabs import CourseTabList
             $('area,input,select,textarea,button').removeAttr('tabindex');
             $(".help-tab a").focus();
             $leanOverlay.removeAttr('tabindex');
-        },
-        initializeTabKeyValues = function(element_name) {
-            focusableChildren = $(element_name).find('a, input[type=text], input[type=submit], select, textarea, button');
-            focusableChildren = focusableChildren.add($closeButton);
-            numElements = focusableChildren.length;
-            currentIndex = 0;
-        },
-        focusElement = function() {
-            var focusableElement = focusableChildren[currentIndex];
-            if (focusableElement) {
-                focusableElement.focus();
-            }
-        },
-        focusPrevious = function () {
-            currentIndex--;
-            if (currentIndex < 0) {
-                currentIndex = numElements - 1;
-            }
-
-            focusElement();
-
-            return false;
-        },
-        focusNext = function () {
-            currentIndex++;
-            if (currentIndex >= numElements) {
-                currentIndex = 0;
-            }
-
-            focusElement();
-
-            return false;
         };
 
-        $helpModal.on('keydown', function (e) {
-            var keyCode = e.keyCode || e.which,
-                escapeKeyCode = 27,
-                tabKeyCode = 9;
-            if (keyCode === escapeKeyCode) {
-                e.preventDefault();
-                $closeButton.click();
-            }
-            if (keyCode == tabKeyCode && e.shiftKey) {
-                e.preventDefault();
-                focusPrevious();
-            }
-            else if (keyCode == tabKeyCode) {
-                e.preventDefault();
-                focusNext();
-            }
-        });
-
-    $helpModal.click(function () {
-        $helpModal.focus();
-    });
+    DialogTabControls.setKeydownListener($helpModal, $closeButton);
 
     $(".help-tab").click(function() {
-        initializeTabKeyValues("#help_wrapper");
+        $helpModal.css("position", "absolute");
+        DialogTabControls.initializeTabKeyValues("#help_wrapper", $closeButton);
         $(".field-error").removeClass("field-error");
         $feedbackForm[0].reset();
         $("#feedback_form input[type='submit']").removeAttr("disabled");
@@ -238,7 +173,7 @@ from xmodule.tabs import CourseTabList
 
     showFeedback = function(event, issue_type, title, subject_label, details_label) {
         $("#help_wrapper").css("display", "none");
-        initializeTabKeyValues("#feedback_form_wrapper");
+        DialogTabControls.initializeTabKeyValues("#feedback_form_wrapper", $closeButton);
         $("#feedback_form input[name='issue_type']").val(issue_type);
         $("#feedback_form_wrapper").css("display", "block");
         $("#feedback_form_wrapper header").html("<h2>" + title + "</h2><hr>");
@@ -249,7 +184,7 @@ from xmodule.tabs import CourseTabList
     };
 
     $("#feedback_link_problem").click(function(event) {
-        $("#feedback_form_details_tip").css("display", "block");
+        $("#feedback_form_details_tip").css({"display": "block", "padding-bottom": "5px"});
         showFeedback(
             event,
             "${_('problem') | n, js_escaped_string}",
@@ -288,7 +223,7 @@ from xmodule.tabs import CourseTabList
     $feedbackForm.on("ajax:success", function(event, data, status, xhr) {
         $("#feedback_form_wrapper").css("display", "none");
         $("#feedback_success_wrapper").css("display", "block");
-        initializeTabKeyValues("#feedback_success_wrapper");
+        DialogTabControls.initializeTabKeyValues("#feedback_success_wrapper", $closeButton);
         $closeButton.focus();
     });
     $feedbackForm.on("ajax:error", function(event, xhr, status, error) {
@@ -328,7 +263,7 @@ from xmodule.tabs import CourseTabList
         // Make change explicit to assistive technology
         $("#feedback_error").focus();
     });
-})(this)
+});
 </script>
 
 %endif

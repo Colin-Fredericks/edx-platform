@@ -13,18 +13,17 @@ from django.core.mail import send_mail
 from django.utils.translation import override as override_language
 
 from course_modes.models import CourseMode
-from student.models import CourseEnrollment, CourseEnrollmentAllowed
 from courseware.models import StudentModule
 from edxmako.shortcuts import render_to_string
-from lang_pref import LANGUAGE_KEY
-
-from submissions import api as sub_api  # installed from the edx-submissions repository
-from student.models import anonymous_id_for_user
+from lms.djangoapps.grades.scores import weighted_score
+from lms.djangoapps.grades.signals.signals import PROBLEM_SCORE_CHANGED
+from openedx.core.djangoapps.lang_pref import LANGUAGE_KEY
+from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 from openedx.core.djangoapps.user_api.models import UserPreference
-
+from submissions import api as sub_api  # installed from the edx-submissions repository
+from student.models import CourseEnrollment, CourseEnrollmentAllowed, anonymous_id_for_user
 from xmodule.modulestore.django import modulestore
 from xmodule.modulestore.exceptions import ItemNotFoundError
-from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 
 
 log = logging.getLogger(__name__)
@@ -245,6 +244,7 @@ def reset_student_attempts(course_id, student, module_state_key, requesting_user
                 )
                 submission_cleared = True
     except ItemNotFoundError:
+        block = None
         log.warning("Could not find %s in modulestore when attempting to reset attempts.", module_state_key)
 
     # Reset the student's score in the submissions API, if xblock.clear_student_state has not done so already.
@@ -267,6 +267,7 @@ def reset_student_attempts(course_id, student, module_state_key, requesting_user
 
     if delete_module:
         module_to_reset.delete()
+        _fire_score_changed_for_block(course_id, student, block, module_state_key)
     else:
         _reset_module_attempts(module_to_reset)
 
@@ -285,6 +286,32 @@ def _reset_module_attempts(studentmodule):
     # save
     studentmodule.state = json.dumps(problem_state)
     studentmodule.save()
+
+
+def _fire_score_changed_for_block(course_id, student, block, module_state_key):
+    """
+    Fires a PROBLEM_SCORE_CHANGED event for the given module. The earned points are
+    always zero. We must retrieve the possible points from the XModule, as
+    noted below.
+    """
+    if block and block.has_score:
+        max_score = block.max_score()
+        if max_score is None:
+            return
+        else:
+            points_earned, points_possible = weighted_score(0, max_score, getattr(block, 'weight', None))
+    else:
+        points_earned, points_possible = 0, 0
+
+    PROBLEM_SCORE_CHANGED.send(
+        sender=None,
+        points_possible=points_possible,
+        points_earned=points_earned,
+        user_id=student.id,
+        course_id=unicode(course_id),
+        usage_id=unicode(module_state_key),
+        score_deleted=True,
+    )
 
 
 def get_email_params(course, auto_enroll, secure=True, course_key=None, display_name=None):

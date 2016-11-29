@@ -105,11 +105,7 @@ class BadExportMixin(object):
         self.export_page.click_export()
         self.export_page.wait_for_error_modal()
         self.export_page.click_modal_button()
-        EmptyPromise(
-            lambda: self.edit_page.is_browser_on_page,
-            'Arrived at component edit page',
-            timeout=30
-        )
+        self.edit_page.wait_for_page()
 
 
 @attr(shard=7)
@@ -296,6 +292,7 @@ class TestEntranceExamCourseImport(ImportTestMixin, StudioCourseTest):
     def page_args(self):
         return [self.browser, self.course_info['org'], self.course_info['number'], self.course_info['run']]
 
+    @flaky  # TODO fix this, see TNL-6009
     def test_course_updated_with_entrance_exam(self):
         """
         Given that I visit an empty course before import

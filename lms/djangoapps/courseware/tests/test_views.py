@@ -209,6 +209,7 @@ class ViewsTestCase(ModuleStoreTestCase):
             parent_location=self.chapter.location,
             due=datetime(2013, 9, 18, 11, 30, 00),
             display_name='Sequential 1',
+            format='Homework'
         )
         self.vertical = ItemFactory.create(
             category='vertical',
@@ -907,33 +908,22 @@ class ViewsTestCase(ModuleStoreTestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_accordion(self):
-        request = RequestFactory().get('foo')
-        request.user = self.user
-        table_of_contents = toc_for_course(
-            request.user,
-            request,
-            self.course,
-            unicode(self.course.get_children()[0].scope_ids.usage_id),
-            None,
-            None
-        )
-
-        # removes newlines and whitespace from the returned view string
-        view = ''.join(render_accordion(request, self.course, table_of_contents['chapters']).split())
-        # the course id unicode is re-encoded here because the quote function does not accept unicode
+        """
+        This needs a response_context, which is not included in the render_accordion's main method
+        returning a render_to_string, so we will render via the courseware URL in order to include
+        the needed context
+        """
         course_id = quote(unicode(self.course.id).encode("utf-8"))
-
-        self.assertIn(
-            u'href="/courses/{}/courseware/Chapter_1/Sequential_1/"><pclass="accordion-display-name">Sequential1</p>'
-            .format(course_id.decode("utf-8")),
-            view
+        response = self.client.get(
+            reverse('courseware', args=[unicode(course_id)]),
+            follow=True
         )
-
-        self.assertIn(
-            u'href="/courses/{}/courseware/Chapter_1/Sequential_2/"><pclass="accordion-display-name">Sequential2</p>'
-            .format(course_id.decode("utf-8")),
-            view
-        )
+        test_responses = [
+            '<p class="accordion-display-name">Sequential 1 <span class="sr">current section</span></p>',
+            '<p class="accordion-display-name">Sequential 2 </p>'
+        ]
+        for test in test_responses:
+            self.assertContains(response, test)
 
 
 @attr(shard=1)
@@ -960,7 +950,8 @@ class BaseDueDateTests(ModuleStoreTestCase):
         section = ItemFactory.create(
             category='sequential',
             parent_location=chapter.location,
-            due=datetime(2013, 9, 18, 11, 30, 00)
+            due=datetime(2013, 9, 18, 11, 30, 00),
+            format='homework'
         )
         vertical = ItemFactory.create(category='vertical', parent_location=section.location)
         ItemFactory.create(category='problem', parent_location=vertical.location)
@@ -975,8 +966,7 @@ class BaseDueDateTests(ModuleStoreTestCase):
         self.user = UserFactory.create()
         self.assertTrue(self.client.login(username=self.user.username, password='test'))
 
-        self.time_with_tz = "due Sep 18, 2013 at 11:30 UTC"
-        self.time_without_tz = "due Sep 18, 2013 at 11:30"
+        self.time_with_tz = "2013-09-18 11:30:00+00:00"
 
     def test_backwards_compatability(self):
         # The test course being used has show_timezone = False in the policy file
@@ -985,8 +975,7 @@ class BaseDueDateTests(ModuleStoreTestCase):
         # remove the timezone.
         course = self.set_up_course(due_date_display_format=None, show_timezone=False)
         response = self.get_response(course)
-        self.assertContains(response, self.time_without_tz)
-        self.assertNotContains(response, self.time_with_tz)
+        self.assertContains(response, self.time_with_tz)
         # Test that show_timezone has been cleared (which means you get the default value of True).
         self.assertTrue(course.show_timezone)
 
@@ -1001,25 +990,11 @@ class BaseDueDateTests(ModuleStoreTestCase):
         response = self.get_response(course)
         self.assertContains(response, self.time_with_tz)
 
-    def test_format_plain_text(self):
-        # plain text due date
-        course = self.set_up_course(due_date_display_format="foobar")
-        response = self.get_response(course)
-        self.assertNotContains(response, self.time_with_tz)
-        self.assertContains(response, "due foobar")
-
     def test_format_date(self):
         # due date with no time
         course = self.set_up_course(due_date_display_format=u"%b %d %y")
         response = self.get_response(course)
-        self.assertNotContains(response, self.time_with_tz)
-        self.assertContains(response, "due Sep 18 13")
-
-    def test_format_hidden(self):
-        # hide due date completely
-        course = self.set_up_course(due_date_display_format=u"")
-        response = self.get_response(course)
-        self.assertNotContains(response, "due ")
+        self.assertContains(response, self.time_with_tz)
 
     def test_format_invalid(self):
         # improperly formatted due_date_display_format falls through to default
@@ -1049,7 +1024,10 @@ class TestAccordionDueDate(BaseDueDateTests):
 
     def get_response(self, course):
         """ Returns the HTML for the accordion """
-        return self.client.get(reverse('courseware', args=[unicode(course.id)]), follow=True)
+        return self.client.get(
+            reverse('courseware', args=[unicode(course.id)]),
+            follow=True
+        )
 
 
 @attr(shard=1)
@@ -1089,14 +1067,17 @@ class StartDateTests(ModuleStoreTestCase):
         course = self.set_up_course()
         response = self.get_about_response(course.id)
         # The start date is set in the set_up_course function above.
-        self.assertContains(response, "2013-SEPTEMBER-16")
+        # This should return in the format '%Y-%m-%dT%H:%M:%S%z'
+        self.assertContains(response, "2013-09-16T07:17:28+0000")
 
-    @patch('util.date_utils.pgettext', fake_pgettext(translations={
-        ("abbreviated month name", "Jul"): "JULY",
-    }))
-    @patch('util.date_utils.ugettext', fake_ugettext(translations={
-        "SHORT_DATE_FORMAT": "%Y-%b-%d",
-    }))
+    @patch(
+        'util.date_utils.pgettext',
+        fake_pgettext(translations={("abbreviated month name", "Jul"): "JULY", })
+    )
+    @patch(
+        'util.date_utils.ugettext',
+        fake_ugettext(translations={"SHORT_DATE_FORMAT": "%Y-%b-%d", })
+    )
     @unittest.skip
     def test_format_localized_in_xml_course(self):
         response = self.get_about_response(SlashSeparatedCourseKey('edX', 'toy', 'TT_2012_Fall'))
@@ -1136,25 +1117,38 @@ class ProgressPageTests(ModuleStoreTestCase):
         self.section = ItemFactory.create(category='sequential', parent_location=self.chapter.location)
         self.vertical = ItemFactory.create(category='vertical', parent_location=self.section.location)
 
+    def _get_progress_page(self, expected_status_code=200):
+        """
+        Gets the progress page for the user in the course.
+        """
+        resp = self.client.get(
+            reverse('progress', args=[unicode(self.course.id)])
+        )
+        self.assertEqual(resp.status_code, expected_status_code)
+        return resp
+
+    def _get_student_progress_page(self, expected_status_code=200):
+        """
+        Gets the progress page for the user in the course.
+        """
+        resp = self.client.get(
+            reverse('student_progress', args=[unicode(self.course.id), self.user.id])
+        )
+        self.assertEqual(resp.status_code, expected_status_code)
+        return resp
+
     @ddt.data('"><script>alert(1)</script>', '<script>alert(1)</script>', '</script><script>alert(1)</script>')
     def test_progress_page_xss_prevent(self, malicious_code):
         """
         Test that XSS attack is prevented
         """
-        resp = self.client.get(
-            reverse('student_progress', args=[unicode(self.course.id), self.user.id])
-        )
-        self.assertEqual(resp.status_code, 200)
+        resp = self._get_student_progress_page()
         # Test that malicious code does not appear in html
         self.assertNotIn(malicious_code, resp.content)
 
     def test_pure_ungraded_xblock(self):
         ItemFactory.create(category='acid', parent_location=self.vertical.location)
-
-        resp = self.client.get(
-            reverse('progress', args=[unicode(self.course.id)])
-        )
-        self.assertEqual(resp.status_code, 200)
+        self._get_progress_page()
 
     @ddt.data(ModuleStoreEnum.Type.mongo, ModuleStoreEnum.Type.split)
     def test_student_progress_with_valid_and_invalid_id(self, default_store):
@@ -1180,11 +1174,8 @@ class ProgressPageTests(ModuleStoreTestCase):
             )
             self.assertEquals(resp.status_code, 404)
 
-        resp = self.client.get(
-            reverse('student_progress', args=[unicode(self.course.id), self.user.id])
-        )
         # Assert that valid 'student_id' returns 200 status
-        self.assertEqual(resp.status_code, 200)
+        self._get_student_progress_page()
 
     @ddt.data(ModuleStoreEnum.Type.mongo, ModuleStoreEnum.Type.split)
     def test_unenrolled_student_progress_for_credit_course(self, default_store):
@@ -1219,38 +1210,26 @@ class ProgressPageTests(ModuleStoreTestCase):
         # Add a single credit requirement (final grade)
         set_credit_requirements(course.id, requirements)
 
-        resp = self.client.get(
-            reverse('student_progress', args=[unicode(course.id), not_enrolled_user.id])
-        )
-        self.assertEqual(resp.status_code, 200)
+        self._get_student_progress_page()
 
     def test_non_ascii_grade_cutoffs(self):
-        resp = self.client.get(
-            reverse('progress', args=[unicode(self.course.id)])
-        )
-        self.assertEqual(resp.status_code, 200)
+        self._get_progress_page()
 
     def test_generate_cert_config(self):
 
-        resp = self.client.get(
-            reverse('progress', args=[unicode(self.course.id)])
-        )
+        resp = self._get_progress_page()
         self.assertNotContains(resp, 'Request Certificate')
 
         # Enable the feature, but do not enable it for this course
         CertificateGenerationConfiguration(enabled=True).save()
 
-        resp = self.client.get(
-            reverse('progress', args=[unicode(self.course.id)])
-        )
+        resp = self._get_progress_page()
         self.assertNotContains(resp, 'Request Certificate')
 
         # Enable certificate generation for this course
         certs_api.set_cert_generation_enabled(self.course.id, True)
 
-        resp = self.client.get(
-            reverse('progress', args=[unicode(self.course.id)])
-        )
+        resp = self._get_progress_page()
         self.assertNotContains(resp, 'Request Certificate')
 
     @patch.dict('django.conf.settings.FEATURES', {'CERTIFICATES_HTML_VIEW': True})
@@ -1295,9 +1274,7 @@ class ProgressPageTests(ModuleStoreTestCase):
         self.course.save()
         self.store.update_item(self.course, self.user.id)
 
-        resp = self.client.get(
-            reverse('progress', args=[unicode(self.course.id)])
-        )
+        resp = self._get_progress_page()
         self.assertContains(resp, u"View Certificate")
 
         self.assertContains(resp, u"You can keep working for a higher grade")
@@ -1308,9 +1285,7 @@ class ProgressPageTests(ModuleStoreTestCase):
         certificates[0]['is_active'] = False
         self.store.update_item(self.course, self.user.id)
 
-        resp = self.client.get(
-            reverse('progress', args=[unicode(self.course.id)])
-        )
+        resp = self._get_progress_page()
         self.assertNotContains(resp, u"View Your Certificate")
         self.assertNotContains(resp, u"You can now view your certificate")
         self.assertContains(resp, "working on it...")
@@ -1340,24 +1315,29 @@ class ProgressPageTests(ModuleStoreTestCase):
         # Enable certificate generation for this course
         certs_api.set_cert_generation_enabled(self.course.id, True)
 
-        resp = self.client.get(
-            reverse('progress', args=[unicode(self.course.id)])
-        )
+        resp = self._get_progress_page()
         self.assertContains(resp, u"Download Your Certificate")
 
     @ddt.data(
-        *itertools.product(((38, 4, True), (38, 4, False)), (True, False))
+        *itertools.product((True, False), (True, False))
     )
     @ddt.unpack
-    def test_query_counts(self, (sql_calls, mongo_calls, self_paced), self_paced_enabled):
+    def test_progress_queries_paced_courses(self, self_paced, self_paced_enabled):
         """Test that query counts remain the same for self-paced and instructor-paced courses."""
         SelfPacedConfiguration(enabled=self_paced_enabled).save()
         self.setup_course(self_paced=self_paced)
-        with self.assertNumQueries(sql_calls), check_mongo_calls(mongo_calls):
-            resp = self.client.get(
-                reverse('progress', args=[unicode(self.course.id)])
-            )
-        self.assertEqual(resp.status_code, 200)
+        with self.assertNumQueries(38), check_mongo_calls(4):
+            self._get_progress_page()
+
+    def test_progress_queries(self):
+        self.setup_course()
+        with self.assertNumQueries(38), check_mongo_calls(4):
+            self._get_progress_page()
+
+        # subsequent accesses to the progress page require fewer queries.
+        for _ in range(2):
+            with self.assertNumQueries(24), check_mongo_calls(4):
+                self._get_progress_page()
 
     @patch(
         'lms.djangoapps.grades.new.course_grade.CourseGrade.summary',
@@ -1395,7 +1375,8 @@ class ProgressPageTests(ModuleStoreTestCase):
 
             self.assertEqual(
                 cert_button_hidden,
-                'Request Certificate' not in resp.content)
+                'Request Certificate' not in resp.content
+            )
 
     @patch.dict('django.conf.settings.FEATURES', {'CERTIFICATES_HTML_VIEW': True})
     @patch(
@@ -1428,9 +1409,7 @@ class ProgressPageTests(ModuleStoreTestCase):
         self.course.save()
         self.store.update_item(self.course, self.user.id)
 
-        resp = self.client.get(
-            reverse('progress', args=[unicode(self.course.id)])
-        )
+        resp = self._get_progress_page()
         self.assertContains(resp, u"View Certificate")
         self.assert_invalidate_certificate(generated_certificate)
 
@@ -1447,9 +1426,7 @@ class ProgressPageTests(ModuleStoreTestCase):
             "http://www.example.com/certificate.pdf", "honor"
         )
 
-        resp = self.client.get(
-            reverse('progress', args=[unicode(self.course.id)])
-        )
+        resp = self._get_progress_page()
         self.assertContains(resp, u'Download Your Certificate')
         self.assert_invalidate_certificate(generated_certificate)
 
@@ -1464,9 +1441,7 @@ class ProgressPageTests(ModuleStoreTestCase):
         user = UserFactory.create()
         self.assertTrue(self.client.login(username=user.username, password='test'))
         CourseEnrollmentFactory(user=user, course_id=self.course.id, mode=CourseMode.AUDIT)
-        response = self.client.get(
-            reverse('progress', args=[unicode(self.course.id)])
-        )
+        response = self._get_progress_page()
 
         self.assertContains(
             response,
@@ -1555,9 +1530,7 @@ class ProgressPageTests(ModuleStoreTestCase):
         )
         # Invalidate user certificate
         certificate.invalidate()
-        resp = self.client.get(
-            reverse('progress', args=[unicode(self.course.id)])
-        )
+        resp = self._get_progress_page()
 
         self.assertNotContains(resp, u'Request Certificate')
         self.assertContains(resp, u'Your certificate has been invalidated')
@@ -1781,9 +1754,9 @@ class GenerateUserCertTests(ModuleStoreTestCase):
         self.client.logout()
         resp = self.client.post(self.url)
         self.assertEqual(resp.status_code, HttpResponseBadRequest.status_code)
-        self.assertIn("You must be signed in to {platform_name} to create a certificate.".format(
+        self.assertIn(u"You must be signed in to {platform_name} to create a certificate.".format(
             platform_name=settings.PLATFORM_NAME
-        ), resp.content)
+        ), resp.content.decode('utf-8'))
 
 
 class ActivateIDCheckerBlock(XBlock):
