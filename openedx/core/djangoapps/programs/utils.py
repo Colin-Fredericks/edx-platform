@@ -145,9 +145,6 @@ def attach_program_detail_url(programs):
     Returns:
         list, containing extended program dicts
     """
-    programs_config = ProgramsApiConfig.current()
-    marketing_url = get_program_marketing_url(programs_config)
-
     for program in programs:
         base = reverse('program_details_view', kwargs={'program_id': program['id']}).rstrip('/')
         slug = slugify(program['name'])
@@ -373,6 +370,8 @@ class ProgramDataExtender(object):
         certificate_data = certificate_api.certificate_downloadable_status(self.user, self.course_key)
         certificate_uuid = certificate_data.get('uuid')
         run_mode['certificate_url'] = certificate_api.get_certificate_url(
+            user_id=self.user.id,  # Providing user_id allows us to fall back to PDF certificates
+                                   # if web certificates are not configured for a given course.
             course_id=self.course_key,
             uuid=certificate_uuid,
         ) if certificate_uuid else None

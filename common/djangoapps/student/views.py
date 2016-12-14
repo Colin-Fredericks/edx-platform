@@ -46,6 +46,7 @@ from social.exceptions import AuthException, AuthAlreadyAssociated
 
 from edxmako.shortcuts import render_to_response, render_to_string
 
+from util.enterprise_helpers import data_sharing_consent_requirement_at_login
 from course_modes.models import CourseMode
 from shoppingcart.api import order_history
 from student.models import (
@@ -1644,6 +1645,10 @@ def create_account_with_params(request, params):
     if should_link_with_social_auth or (third_party_auth.is_enabled() and pipeline.running(request)):
         params["password"] = pipeline.make_random_password()
 
+    # Add a form requirement for data sharing consent if the EnterpriseCustomer
+    # for the request requires it at login
+    extra_fields['data_sharing_consent'] = data_sharing_consent_requirement_at_login(request)
+
     # if doing signup for an external authorization, then get email, password, name from the eamap
     # don't use the ones from the form, since the user could have hacked those
     # unless originally we didn't get a valid email or name from the external auth
@@ -1740,6 +1745,9 @@ def create_account_with_params(request, params):
     if third_party_auth.is_enabled() and pipeline.running(request):
         running_pipeline = pipeline.get(request)
         third_party_provider = provider.Registry.get_from_pipeline(running_pipeline)
+        # Store received data sharing consent field values in the pipeline for use
+        # by any downstream pipeline elements which require them.
+        running_pipeline['kwargs']['data_sharing_consent'] = form.cleaned_data.get('data_sharing_consent', None)
 
     # Track the user's registration
     if hasattr(settings, 'LMS_SEGMENT_KEY') and settings.LMS_SEGMENT_KEY:
@@ -1993,6 +2001,7 @@ def auto_auth(request):
     * `redirect`: Set to "true" will redirect to the `redirect_to` value if set, or
         course home page if course_id is defined, otherwise it will redirect to dashboard
     * `redirect_to`: will redirect to to this url
+    * `is_active` : make/update account with status provided as 'is_active'
     If username, email, or password are not provided, use
     randomly generated credentials.
     """
@@ -2009,9 +2018,12 @@ def auto_auth(request):
     is_superuser = request.GET.get('superuser', None)
     course_id = request.GET.get('course_id', None)
     redirect_to = request.GET.get('redirect_to', None)
+    active_status = request.GET.get('is_active')
 
     # mode has to be one of 'honor'/'professional'/'verified'/'audit'/'no-id-professional'/'credit'
     enrollment_mode = request.GET.get('enrollment_mode', 'honor')
+
+    active_status = (not active_status or active_status == 'true')
 
     course_key = None
     if course_id:
@@ -2040,6 +2052,7 @@ def auto_auth(request):
         user = User.objects.get(username=username)
         user.email = email
         user.set_password(password)
+        user.is_active = active_status
         user.save()
         profile = UserProfile.objects.get(user=user)
         reg = Registration.objects.get(user=user)
@@ -2053,9 +2066,9 @@ def auto_auth(request):
         user.is_superuser = (is_superuser == "true")
         user.save()
 
-    # Activate the user
-    reg.activate()
-    reg.save()
+    if active_status:
+        reg.activate()
+        reg.save()
 
     # ensure parental consent threshold is met
     year = datetime.date.today().year
