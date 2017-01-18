@@ -64,6 +64,7 @@
             'xblock/lms.runtime.v1': 'lms/js/xblock/lms.runtime.v1',
             'xblock': 'common/js/xblock',
             'capa/display': 'xmodule_js/src/capa/display',
+            'sequence/display': 'xmodule_js/src/sequence/display',
             'string_utils': 'xmodule_js/common_static/js/src/string_utils',
             'logger': 'xmodule_js/common_static/js/src/logger',
             'Markdown.Converter': 'js/Markdown.Converter',
@@ -642,7 +643,7 @@
                 ],
                 exports: 'ThreadResponseView'
             },
-            'common/js/discussion/discussion_module_view': {
+            'common/js/discussion/views/discussion_inline_view': {
                 deps: [
                     'jquery',
                     'underscore',
@@ -666,7 +667,7 @@
                     'common/js/discussion/views/thread_response_show_view',
                     'common/js/discussion/views/thread_response_view'
                 ],
-                exports: 'DiscussionModuleView'
+                exports: 'DiscussionInlineView'
             },
             'common/js/spec_helpers/discussion_spec_helper': {
                 deps: [

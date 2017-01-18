@@ -12,7 +12,6 @@ import json
 from mock import patch
 from nose.plugins.attrib import attr
 from pytz import UTC
-import unittest
 
 from django.conf import settings
 from django.core.urlresolvers import reverse
@@ -25,7 +24,7 @@ from student.tests.factories import UserFactory
 from student.models import UserProfile, LanguageProficiency, PendingEmailChange
 from openedx.core.djangoapps.user_api.accounts import ACCOUNT_VISIBILITY_PREF_KEY
 from openedx.core.djangoapps.user_api.preferences.api import set_user_preference
-from openedx.core.djangolib.testing.utils import CacheIsolationTestCase
+from openedx.core.djangolib.testing.utils import CacheIsolationTestCase, skip_unless_lms
 from .. import PRIVATE_VISIBILITY, ALL_USERS_VISIBILITY
 
 TEST_PROFILE_IMAGE_UPLOADED_AT = datetime.datetime(2002, 1, 9, 15, 43, 01, tzinfo=UTC)
@@ -112,28 +111,6 @@ class UserAPITestCase(APITestCase):
         legacy_profile.language_proficiencies.add(LanguageProficiency(code='en'))
         legacy_profile.save()
 
-
-@ddt.ddt
-@unittest.skipUnless(settings.ROOT_URLCONF == 'lms.urls', 'Account APIs are only supported in LMS')
-@patch('openedx.core.djangoapps.user_api.accounts.image_helpers._PROFILE_IMAGE_SIZES', [50, 10])
-@patch.dict(
-    'openedx.core.djangoapps.user_api.accounts.image_helpers.PROFILE_IMAGE_SIZES_MAP',
-    {'full': 50, 'small': 10},
-    clear=True
-)
-@attr(shard=2)
-class TestAccountAPI(CacheIsolationTestCase, UserAPITestCase):
-    """
-    Unit tests for the Account API.
-    """
-
-    ENABLED_CACHES = ['default']
-
-    def setUp(self):
-        super(TestAccountAPI, self).setUp()
-
-        self.url = reverse("accounts_api", kwargs={'username': self.user.username})
-
     def _verify_profile_image_data(self, data, has_profile_image):
         """
         Verify the profile image data in a GET response for self.user
@@ -159,6 +136,81 @@ class TestAccountAPI(CacheIsolationTestCase, UserAPITestCase):
                 'image_url_small': template.format(size=10),
             }
         )
+
+
+@ddt.ddt
+@skip_unless_lms
+@attr(shard=2)
+class TestOwnUsernameAPI(CacheIsolationTestCase, UserAPITestCase):
+    """
+    Unit tests for the Accounts API.
+    """
+
+    ENABLED_CACHES = ['default']
+
+    def setUp(self):
+        super(TestOwnUsernameAPI, self).setUp()
+
+        self.url = reverse("own_username_api")
+
+    def _verify_get_own_username(self, queries, expected_status=200):
+        """
+        Internal helper to perform the actual assertion
+        """
+        with self.assertNumQueries(queries):
+            response = self.send_get(self.client, expected_status=expected_status)
+        if expected_status == 200:
+            data = response.data
+            self.assertEqual(1, len(data))
+            self.assertEqual(self.user.username, data["username"])
+
+    def test_get_username(self):
+        """
+        Test that a client (logged in) can get her own username.
+        """
+        self.client.login(username=self.user.username, password=self.test_password)
+        self._verify_get_own_username(15)
+
+    def test_get_username_inactive(self):
+        """
+        Test that a logged-in client can get their
+        username, even if inactive.
+        """
+        self.client.login(username=self.user.username, password=self.test_password)
+        self.user.is_active = False
+        self.user.save()
+        self._verify_get_own_username(15)
+
+    def test_get_username_not_logged_in(self):
+        """
+        Test that a client (not logged in) gets a 401
+        when trying to retrieve their username.
+        """
+
+        # verify that the endpoint is inaccessible when not logged in
+        self._verify_get_own_username(12, expected_status=401)
+
+
+@ddt.ddt
+@skip_unless_lms
+@patch('openedx.core.djangoapps.user_api.accounts.image_helpers._PROFILE_IMAGE_SIZES', [50, 10])
+@patch.dict(
+    'openedx.core.djangoapps.user_api.accounts.image_helpers.PROFILE_IMAGE_SIZES_MAP',
+    {'full': 50, 'small': 10},
+    clear=True
+)
+@attr(shard=2)
+class TestAccountsAPI(CacheIsolationTestCase, UserAPITestCase):
+    """
+    Unit tests for the Accounts API.
+    """
+
+    ENABLED_CACHES = ['default']
+
+    def setUp(self):
+        super(TestAccountsAPI, self).setUp()
+
+        self.url = reverse("accounts_api", kwargs={'username': self.user.username})
 
     def _verify_full_shareable_account_response(self, response, account_privacy=None, badges_enabled=False):
         """
@@ -311,6 +363,7 @@ class TestAccountAPI(CacheIsolationTestCase, UserAPITestCase):
         Test that a client (logged in) can get her own account information (using default legacy profile information,
         as created by the test UserFactory).
         """
+
         def verify_get_own_information(queries):
             """
             Internal helper to perform the actual assertions
@@ -729,7 +782,7 @@ class TestAccountAPI(CacheIsolationTestCase, UserAPITestCase):
 
 
 @attr(shard=2)
-@unittest.skipUnless(settings.ROOT_URLCONF == 'lms.urls', 'Test only valid in lms')
+@skip_unless_lms
 class TestAccountAPITransactions(TransactionTestCase):
     """
     Tests the transactional behavior of the account API

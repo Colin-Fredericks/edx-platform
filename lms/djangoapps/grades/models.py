@@ -20,6 +20,7 @@ from django.db import models
 from django.utils.timezone import now
 from eventtracking import tracker
 from model_utils.models import TimeStampedModel
+from track import contexts
 from track.event_transaction_utils import get_event_transaction_id, get_event_transaction_type
 
 from coursewarehistoryextended.fields import UnsignedBigIntAutoField
@@ -35,6 +36,38 @@ BLOCK_RECORD_LIST_VERSION = 1
 # Used to serialize information about a block at the time it was used in
 # grade calculation.
 BlockRecord = namedtuple('BlockRecord', ['locator', 'weight', 'raw_possible', 'graded'])
+
+
+class DeleteGradesMixin(object):
+    """
+    A Mixin class that provides functionality to delete grades.
+    """
+
+    @classmethod
+    def query_grades(cls, course_ids=None, modified_start=None, modified_end=None):
+        """
+        Queries all the grades in the table, filtered by the provided arguments.
+        """
+        kwargs = {}
+
+        if course_ids:
+            kwargs['course_id__in'] = [course_id for course_id in course_ids]
+
+        if modified_start:
+            if modified_end:
+                kwargs['modified__range'] = (modified_start, modified_end)
+            else:
+                kwargs['modified__gt'] = modified_start
+
+        return cls.objects.filter(**kwargs)
+
+    @classmethod
+    def delete_grades(cls, *args, **kwargs):
+        """
+        Deletes all the grades in the table, filtered by the provided arguments.
+        """
+        query = cls.query_grades(*args, **kwargs)
+        query.delete()
 
 
 class BlockRecordList(tuple):
@@ -207,7 +240,7 @@ class VisibleBlocks(models.Model):
         cls.bulk_create(non_existent_brls)
 
 
-class PersistentSubsectionGrade(TimeStampedModel):
+class PersistentSubsectionGrade(DeleteGradesMixin, TimeStampedModel):
     """
     A django model tracking persistent grades at the subsection level.
     """
@@ -219,6 +252,17 @@ class PersistentSubsectionGrade(TimeStampedModel):
             # * Progress page can pull all grades for a given (course_id, user_id)
             # * Course staff can see all grades for a course using (course_id,)
             ('course_id', 'user_id', 'usage_key'),
+        ]
+        # Allows querying in the following ways:
+        # (modified): find all the grades updated within a certain timespan
+        # (modified, course_id): find all the grades updated within a timespan for a certain course
+        # (modified, course_id, usage_key): find all the grades updated within a timespan for a subsection
+        #   in a course
+        # (first_attempted, course_id, user_id): find all attempted subsections in a course for a user
+        # (first_attempted, course_id): find all attempted subsections in a course for all users
+        index_together = [
+            ('modified', 'course_id', 'usage_key'),
+            ('first_attempted', 'course_id', 'user_id')
         ]
 
     # primary key will need to be large for this table
@@ -433,27 +477,31 @@ class PersistentSubsectionGrade(TimeStampedModel):
         Emits an edx.grades.subsection.grade_calculated event
         with data from the passed grade.
         """
-        tracker.emit(
-            u'edx.grades.subsection.grade_calculated',
-            {
-                'user_id': unicode(grade.user_id),
-                'course_id': unicode(grade.course_id),
-                'block_id': unicode(grade.usage_key),
-                'course_version': unicode(grade.course_version),
-                'weighted_total_earned': grade.earned_all,
-                'weighted_total_possible': grade.possible_all,
-                'weighted_graded_earned': grade.earned_graded,
-                'weighted_graded_possible': grade.possible_graded,
-                'first_attempted': unicode(grade.first_attempted),
-                'subtree_edited_timestamp': unicode(grade.subtree_edited_timestamp),
-                'event_transaction_id': unicode(get_event_transaction_id()),
-                'event_transaction_type': unicode(get_event_transaction_type()),
-                'visible_blocks_hash': unicode(grade.visible_blocks_id),
-            }
-        )
+        # TODO: remove this context manager after completion of AN-6134
+        event_name = u'edx.grades.subsection.grade_calculated'
+        context = contexts.course_context_from_course_id(grade.course_id)
+        with tracker.get_tracker().context(event_name, context):
+            tracker.emit(
+                event_name,
+                {
+                    'user_id': unicode(grade.user_id),
+                    'course_id': unicode(grade.course_id),
+                    'block_id': unicode(grade.usage_key),
+                    'course_version': unicode(grade.course_version),
+                    'weighted_total_earned': grade.earned_all,
+                    'weighted_total_possible': grade.possible_all,
+                    'weighted_graded_earned': grade.earned_graded,
+                    'weighted_graded_possible': grade.possible_graded,
+                    'first_attempted': unicode(grade.first_attempted),
+                    'subtree_edited_timestamp': unicode(grade.subtree_edited_timestamp),
+                    'event_transaction_id': unicode(get_event_transaction_id()),
+                    'event_transaction_type': unicode(get_event_transaction_type()),
+                    'visible_blocks_hash': unicode(grade.visible_blocks_id),
+                }
+            )
 
 
-class PersistentCourseGrade(TimeStampedModel):
+class PersistentCourseGrade(DeleteGradesMixin, TimeStampedModel):
     """
     A django model tracking persistent course grades.
     """
@@ -465,11 +513,14 @@ class PersistentCourseGrade(TimeStampedModel):
         # (course_id) for instructors to see all course grades, implicitly created via the unique_together constraint
         # (user_id) for course dashboard; explicitly declared as an index below
         # (passed_timestamp, course_id) for tracking when users first earned a passing grade.
+        # (modified): find all the grades updated within a certain timespan
+        # (modified, course_id): find all the grades updated within a certain timespan for a course
         unique_together = [
             ('course_id', 'user_id'),
         ]
         index_together = [
             ('passed_timestamp', 'course_id'),
+            ('modified', 'course_id')
         ]
 
     # primary key will need to be large for this table
@@ -543,17 +594,21 @@ class PersistentCourseGrade(TimeStampedModel):
         Emits an edx.grades.course.grade_calculated event
         with data from the passed grade.
         """
-        tracker.emit(
-            u'edx.grades.course.grade_calculated',
-            {
-                'user_id': unicode(grade.user_id),
-                'course_id': unicode(grade.course_id),
-                'course_version': unicode(grade.course_version),
-                'percent_grade': grade.percent_grade,
-                'letter_grade': unicode(grade.letter_grade),
-                'course_edited_timestamp': unicode(grade.course_edited_timestamp),
-                'event_transaction_id': unicode(get_event_transaction_id()),
-                'event_transaction_type': unicode(get_event_transaction_type()),
-                'grading_policy_hash': unicode(grade.grading_policy_hash),
-            }
-        )
+        # TODO: remove this context manager after completion of AN-6134
+        event_name = u'edx.grades.course.grade_calculated'
+        context = contexts.course_context_from_course_id(grade.course_id)
+        with tracker.get_tracker().context(event_name, context):
+            tracker.emit(
+                event_name,
+                {
+                    'user_id': unicode(grade.user_id),
+                    'course_id': unicode(grade.course_id),
+                    'course_version': unicode(grade.course_version),
+                    'percent_grade': grade.percent_grade,
+                    'letter_grade': unicode(grade.letter_grade),
+                    'course_edited_timestamp': unicode(grade.course_edited_timestamp),
+                    'event_transaction_id': unicode(get_event_transaction_id()),
+                    'event_transaction_type': unicode(get_event_transaction_type()),
+                    'grading_policy_hash': unicode(grade.grading_policy_hash),
+                }
+            )
