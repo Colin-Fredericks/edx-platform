@@ -24,8 +24,10 @@ from course_modes.models import CourseMode
 from courseware.access import has_access
 from edxmako.shortcuts import render_to_response
 from openedx.core.djangoapps.embargo import api as embargo_api
+from openedx.features.enterprise_support import api as enterprise_api
 from student.models import CourseEnrollment
 from util.db import outer_atomic
+from util import organizations_helpers as organization_api
 
 
 class ChooseModeView(View):
@@ -100,9 +102,7 @@ class ChooseModeView(View):
             return redirect(redirect_url)
 
         # If there isn't a verified mode available, then there's nothing
-        # to do on this page.  The user has almost certainly been auto-registered
-        # in the "honor" track by this point, so we send the user
-        # to the dashboard.
+        # to do on this page.  Send the user to the dashboard.
         if not CourseMode.has_verified_mode(modes):
             return redirect(reverse('dashboard'))
 
@@ -132,11 +132,11 @@ class ChooseModeView(View):
             CourseMode.is_credit_mode(mode) for mode
             in CourseMode.modes_for_course(course_key, only_selectable=False)
         )
-
+        course_id = course_key.to_deprecated_string()
         context = {
             "course_modes_choose_url": reverse(
                 "course_modes_choose",
-                kwargs={'course_id': course_key.to_deprecated_string()}
+                kwargs={'course_id': course_id}
             ),
             "modes": modes,
             "has_credit_upsell": has_credit_upsell,
@@ -148,6 +148,37 @@ class ChooseModeView(View):
             "responsive": True,
             "nav_hidden": True,
         }
+
+        title_content = _("Congratulations!  You are now enrolled in {course_name}").format(
+            course_name=course.display_name_with_default_escaped
+        )
+        enterprise_learner_data = enterprise_api.get_enterprise_learner_data(site=request.site, user=request.user)
+        if enterprise_learner_data:
+            is_course_in_enterprise_catalog = enterprise_api.is_course_in_enterprise_catalog(
+                site=request.site,
+                course_id=course_id,
+                user=request.user,
+                enterprise_catalog_id=enterprise_learner_data[0]['enterprise_customer']['catalog']
+            )
+
+            if is_course_in_enterprise_catalog:
+                partner_names = partner_name = course.display_organization \
+                    if course.display_organization else course.org
+                enterprise_name = enterprise_learner_data[0]['enterprise_customer']['name']
+                organizations = organization_api.get_course_organizations(course_id=course.id)
+                if organizations:
+                    partner_names = ' and '.join([org.get('name', partner_name) for org in organizations])
+
+                title_content = _("Welcome, {username}! You are about to enroll in {course_name},"
+                                  " from {partner_names}, sponsored by {enterprise_name}. Please select your enrollment"
+                                  " information below.").format(
+                    username=request.user.username,
+                    course_name=course.display_name_with_default_escaped,
+                    partner_names=partner_names,
+                    enterprise_name=enterprise_name
+                )
+        context["title_content"] = title_content
+
         if "verified" in modes:
             verified_mode = modes["verified"]
             context["suggested_prices"] = [
@@ -202,9 +233,12 @@ class ChooseModeView(View):
             return HttpResponseBadRequest(_("Enrollment mode not supported"))
 
         if requested_mode == 'audit':
-            # The user will have already been enrolled in the audit mode at this
-            # point, so we just redirect them to the dashboard, thereby avoiding
-            # hitting the database a second time attempting to enroll them.
+            # If the learner has arrived at this screen via the traditional enrollment workflow,
+            # then they should already be enrolled in an audit mode for the course, assuming one has
+            # been configured.  However, alternative enrollment workflows have been introduced into the
+            # system, such as third-party discovery.  These workflows result in learners arriving
+            # directly at this screen, and they will not necessarily be pre-enrolled in the audit mode.
+            CourseEnrollment.enroll(request.user, course_key, CourseMode.AUDIT)
             return redirect(reverse('dashboard'))
 
         if requested_mode == 'honor':
@@ -272,6 +306,7 @@ def create_mode(request, course_id):
         `min_price` (int): The minimum price a user must pay to enroll in the new course mode
         `suggested_prices` (str): Comma-separated prices to suggest to the user.
         `currency` (str): The currency in which to list prices.
+        `sku` (str): The product SKU value.
 
     By default, this endpoint will create an 'honor' mode for the given course with display name
     'Honor Code', a minimum price of 0, no suggested prices, and using USD as the currency.
@@ -289,6 +324,7 @@ def create_mode(request, course_id):
         'min_price': 0,
         'suggested_prices': u'',
         'currency': u'usd',
+        'sku': None,
     }
 
     # Try pulling querystring parameters out of the request

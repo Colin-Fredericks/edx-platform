@@ -278,7 +278,7 @@ class ProblemTypeTestMixin(ProblemTypeA11yTestMixin):
         And I should see the problem title is focused
         """
         self.problem_page.click_show()
-        self.problem_page.wait_for_focus_on_problem_meta()
+        self.problem_page.wait_for_show_answer_notification()
 
     @attr(shard=7)
     def test_save_reaction(self):
@@ -495,7 +495,7 @@ class CheckboxProblemTypeTest(ProblemTypeTestBase, ProblemTypeTestMixin):
         self.problem_page.click_show()
         self.assertTrue(self.problem_page.is_solution_tag_present())
         self.assertTrue(self.problem_page.is_correct_choice_highlighted(correct_choices=[1, 3]))
-        self.problem_page.wait_for_focus_on_problem_meta()
+        self.problem_page.wait_for_show_answer_notification()
 
 
 class MultipleChoiceProblemTypeTest(ProblemTypeTestBase, ProblemTypeTestMixin):
@@ -534,6 +534,35 @@ class MultipleChoiceProblemTypeTest(ProblemTypeTestBase, ProblemTypeTestMixin):
             self.problem_page.click_choice("choice_choice_1")
         else:
             self.problem_page.click_choice("choice_choice_2")
+
+    @attr(shard=7)
+    def test_can_show_answer(self):
+        """
+        Scenario: Verifies that show answer button is working as expected.
+
+        Given that I am on courseware page
+        And I can see a CAPA problem with show answer button
+        When I click "Show Answer" button
+        The correct answer is displayed with a single correctness indicator.
+        """
+        # Click the correct answer, but don't submit yet. No correctness shows.
+        self.answer_problem('correct')
+        self.assertFalse(self.problem_page.is_correct_choice_highlighted(correct_choices=[3]))
+
+        # After submit, the answer should be marked as correct.
+        self.problem_page.click_submit()
+        self.assertTrue(self.problem_page.is_correct_choice_highlighted(correct_choices=[3]))
+
+        # Switch to an incorrect answer. This will hide the correctness indicator.
+        self.answer_problem('incorrect')
+        self.assertFalse(self.problem_page.is_correct_choice_highlighted(correct_choices=[3]))
+
+        # Now click Show Answer. A single correctness indicator should be shown.
+        self.problem_page.click_show()
+        self.assertTrue(self.problem_page.is_correct_choice_highlighted(correct_choices=[3]))
+
+        # Finally, make sure that clicking Show Answer moved focus to the correct place.
+        self.problem_page.wait_for_show_answer_notification()
 
 
 class RadioProblemTypeTest(ProblemTypeTestBase, ProblemTypeTestMixin):

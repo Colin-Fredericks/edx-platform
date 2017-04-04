@@ -14,6 +14,7 @@ from django_comment_common.utils import seed_permissions_roles
 
 from openedx.core.djangoapps.self_paced.models import SelfPacedConfiguration
 from openedx.core.djangoapps.site_configuration.models import SiteConfiguration
+from xmodule.partitions.partitions_service import get_all_partitions_for_course
 
 from xmodule.modulestore import ModuleStoreEnum
 from xmodule.modulestore.django import modulestore
@@ -283,6 +284,23 @@ def reverse_usage_url(handler_name, usage_key, kwargs=None):
     return reverse_url(handler_name, 'usage_key_string', usage_key, kwargs)
 
 
+def get_split_group_display_name(xblock, course):
+    """
+    Returns group name if an xblock is found in user partition groups that are suitable for the split_test module.
+
+    Arguments:
+        xblock (XBlock): The courseware component.
+        course (XBlock): The course descriptor.
+
+    Returns:
+        group name (String): Group name of the matching group xblock.
+    """
+    for user_partition in get_user_partition_info(xblock, schemes=['random'], course=course):
+        for group in user_partition['groups']:
+            if 'Group ID {group_id}'.format(group_id=group['id']) == xblock.display_name_with_default:
+                return group['name']
+
+
 def get_user_partition_info(xblock, schemes=None, course=None):
     """
     Retrieve user partition information for an XBlock for display in editors.
@@ -356,11 +374,11 @@ def get_user_partition_info(xblock, schemes=None, course=None):
         schemes = set(schemes)
 
     partitions = []
-    for p in sorted(course.user_partitions, key=lambda p: p.name):
+    for p in sorted(get_all_partitions_for_course(course, active_only=True), key=lambda p: p.name):
 
         # Exclude disabled partitions, partitions with no groups defined
         # Also filter by scheme name if there's a filter defined.
-        if p.active and p.groups and (schemes is None or p.scheme.name in schemes):
+        if p.groups and (schemes is None or p.scheme.name in schemes):
 
             # First, add groups defined by the partition
             groups = []
@@ -391,7 +409,7 @@ def get_user_partition_info(xblock, schemes=None, course=None):
             # Put together the entire partition dictionary
             partitions.append({
                 "id": p.id,
-                "name": p.name,
+                "name": unicode(p.name),  # Convert into a string in case ugettext_lazy was used
                 "scheme": p.scheme.name,
                 "groups": groups,
             })
@@ -436,6 +454,20 @@ def get_visibility_partition_info(xblock):
         "has_selected_groups": has_selected_groups,
         "selected_verified_partition_id": selected_verified_partition_id,
     }
+
+
+def get_xblock_aside_instance(usage_key):
+    """
+    Returns: aside instance of a aside xblock
+    :param usage_key: Usage key of aside xblock
+    """
+    try:
+        descriptor = modulestore().get_item(usage_key.usage_key)
+        for aside in descriptor.runtime.get_asides(descriptor):
+            if aside.scope_ids.block_type == usage_key.aside_type:
+                return aside
+    except ItemNotFoundError:
+        log.warning(u'Unable to load item %s', usage_key.usage_key)
 
 
 def is_self_paced(course):

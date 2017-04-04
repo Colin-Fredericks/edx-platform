@@ -31,11 +31,15 @@ class CourseGrade(object):
     def __init__(self, student, course, course_structure):
         self.student = student
         self.course = course
-        self.course_version = getattr(course, 'course_version', None)
-        self.course_edited_timestamp = getattr(course, 'subtree_edited_on', None)
-        self.course_structure = course_structure
         self._percent = None
         self._letter_grade = None
+
+        self.course_structure = course_structure
+        if self.course_structure:
+            course_block = course_structure[course.location]
+            self.course_version = getattr(course_block, 'course_version', None)
+            self.course_edited_timestamp = getattr(course_block, 'subtree_edited_on', None)
+
         self._subsection_grade_factory = SubsectionGradeFactory(self.student, self.course, self.course_structure)
 
     @lazy
@@ -45,7 +49,7 @@ class CourseGrade(object):
         a dict keyed by subsection format types.
         """
         subsections_by_format = defaultdict(OrderedDict)
-        for chapter in self.chapter_grades:
+        for chapter in self.chapter_grades.itervalues():
             for subsection_grade in chapter['sections']:
                 if subsection_grade.graded:
                     graded_total = subsection_grade.graded_total
@@ -59,7 +63,7 @@ class CourseGrade(object):
         Returns a dict of problem scores keyed by their locations.
         """
         locations_to_scores = {}
-        for chapter in self.chapter_grades:
+        for chapter in self.chapter_grades.itervalues():
             for subsection_grade in chapter['sections']:
                 locations_to_scores.update(subsection_grade.locations_to_scores)
         return locations_to_scores
@@ -84,10 +88,12 @@ class CourseGrade(object):
     @lazy
     def chapter_grades(self):
         """
-        Returns a list of chapters, each containing its subsection grades,
-        display name, and url name.
+        Returns a dictionary of dictionaries.
+        The primary dictionary is keyed by the chapter's usage_key.
+        The secondary dictionary contains the chapter's
+        subsection grades, display name, and url name.
         """
-        chapter_grades = []
+        chapter_grades = OrderedDict()
         for chapter_key in self.course_structure.get_children(self.course.location):
             chapter = self.course_structure[chapter_key]
             chapter_subsection_grades = []
@@ -97,11 +103,11 @@ class CourseGrade(object):
                     self._subsection_grade_factory.create(self.course_structure[subsection_key], read_only=True)
                 )
 
-            chapter_grades.append({
+            chapter_grades[chapter_key] = {
                 'display_name': block_metadata_utils.display_name_with_default_escaped(chapter),
                 'url_name': block_metadata_utils.url_name_for_block(chapter),
                 'sections': chapter_subsection_grades
-            })
+            }
         return chapter_grades
 
     @property
@@ -148,27 +154,29 @@ class CourseGrade(object):
 
         If read_only is True, doesn't save any updates to the grades.
         """
-        subsections_total = sum(len(chapter['sections']) for chapter in self.chapter_grades)
+        subsections_total = sum(len(chapter['sections']) for chapter in self.chapter_grades.itervalues())
 
         total_graded_subsections = sum(len(x) for x in self.graded_subsections_by_format.itervalues())
         subsections_created = len(self._subsection_grade_factory._unsaved_subsection_grades)  # pylint: disable=protected-access
         subsections_read = subsections_total - subsections_created
         blocks_total = len(self.locations_to_scores)
-        if not read_only:
-            self._subsection_grade_factory.bulk_create_unsaved()
-            grading_policy_hash = self.get_grading_policy_hash(self.course.location, self.course_structure)
-            PersistentCourseGrade.update_or_create_course_grade(
-                user_id=self.student.id,
-                course_id=self.course.id,
-                course_version=self.course_version,
-                course_edited_timestamp=self.course_edited_timestamp,
-                grading_policy_hash=grading_policy_hash,
-                percent_grade=self.percent,
-                letter_grade=self.letter_grade or "",
-                passed=self.passed,
-            )
 
-        self._signal_listeners_when_grade_computed()
+        if not read_only:
+            if PersistentGradesEnabledFlag.feature_enabled(self.course.id):
+                self._subsection_grade_factory.bulk_create_unsaved()
+                grading_policy_hash = self.get_grading_policy_hash(self.course.location, self.course_structure)
+                PersistentCourseGrade.update_or_create_course_grade(
+                    user_id=self.student.id,
+                    course_id=self.course.id,
+                    course_version=self.course_version,
+                    course_edited_timestamp=self.course_edited_timestamp,
+                    grading_policy_hash=grading_policy_hash,
+                    percent_grade=self.percent,
+                    letter_grade=self.letter_grade or "",
+                    passed=self.passed,
+                )
+            self._signal_listeners_when_grade_computed()
+
         self._log_event(
             log.warning,
             u"compute_and_update, read_only: {0}, subsections read/created: {1}/{2}, blocks accessed: {3}, total "
@@ -180,6 +188,19 @@ class CourseGrade(object):
                 total_graded_subsections,
             )
         )
+
+    def score_for_chapter(self, chapter_key):
+        """
+        Returns the aggregate weighted score for the given chapter.
+        Raises:
+            KeyError if the chapter is not found.
+        """
+        earned, possible = 0.0, 0.0
+        chapter_grade = self.chapter_grades[chapter_key]
+        for section in chapter_grade['sections']:
+            earned += section.graded_total.earned
+            possible += section.graded_total.possible
+        return earned, possible
 
     def score_for_module(self, location):
         """
@@ -195,8 +216,7 @@ class CourseGrade(object):
             score = self.locations_to_scores[location]
             return score.earned, score.possible
         children = self.course_structure.get_children(location)
-        earned = 0.0
-        possible = 0.0
+        earned, possible = 0.0, 0.0
         for child in children:
             child_earned, child_possible = self.score_for_module(child)
             earned += child_earned
@@ -348,7 +368,7 @@ class CourseGradeFactory(object):
 
     GradeResult = namedtuple('GradeResult', ['student', 'course_grade', 'err_msg'])
 
-    def iter(self, course, students):
+    def iter(self, course, students, read_only=True):
         """
         Given a course and an iterable of students (User), yield a GradeResult
         for every student enrolled in the course.  GradeResult is a named tuple of:
@@ -368,7 +388,7 @@ class CourseGradeFactory(object):
         for student in students:
             with dog_stats_api.timer('lms.grades.CourseGradeFactory.iter', tags=[u'action:{}'.format(course.id)]):
                 try:
-                    course_grade = CourseGradeFactory().create(student, course, collected_block_structure)
+                    course_grade = CourseGradeFactory().create(student, course, collected_block_structure, read_only=read_only)
                     yield self.GradeResult(student, course_grade, "")
 
                 except Exception as exc:  # pylint: disable=broad-except

@@ -11,7 +11,7 @@ from django.test.utils import override_settings
 from django.db import connection
 from nose.plugins.attrib import attr
 import httpretty
-from lms.djangoapps.commerce.tests import TEST_API_SIGNING_KEY, TEST_API_URL
+from lms.djangoapps.commerce.tests import TEST_API_URL
 import mock
 import pytz
 from opaque_keys.edx.keys import CourseKey
@@ -435,18 +435,14 @@ class CreditRequirementApiTests(CreditApiTestBase):
         self.assertEqual(req_status[0]["order"], expected_order)
         return req_status
 
-    @ddt.data(
-        *CourseMode.CREDIT_ELIGIBLE_MODES
-    )
-    def test_set_credit_requirement_status(self, mode):
-        username = self.user.username
-        credit_course = self.add_credit_course()
+    def _set_credit_course_requirements(self):
 
-        # Enroll user and verify his enrollment.
-        self.enroll(self.user, self.course_key, mode)
-        self.assertTrue(CourseEnrollment.is_enrolled(self.user, self.course_key))
-        self.assertTrue(CourseEnrollment.enrollment_mode_for_user(self.user, self.course_key), (mode, True))
+        """
+        Sets requirements for the credit course.
 
+        Returns:
+            dict: Course requirements
+        """
         requirements = [
             {
                 "namespace": "grade",
@@ -467,6 +463,23 @@ class CreditRequirementApiTests(CreditApiTestBase):
         course_requirements = api.get_credit_requirements(self.course_key)
         self.assertEqual(len(course_requirements), 2)
 
+    @ddt.data(
+        *CourseMode.CREDIT_ELIGIBLE_MODES
+    )
+    def test_set_credit_requirement_status(self, mode):
+        """
+        Test set/update credit requirement status
+        """
+        username = self.user.username
+        credit_course = self.add_credit_course()
+
+        # Enroll user and verify his enrollment.
+        self.enroll(self.user, self.course_key, mode)
+        self.assertTrue(CourseEnrollment.is_enrolled(self.user, self.course_key))
+        self.assertTrue(CourseEnrollment.enrollment_mode_for_user(self.user, self.course_key), (mode, True))
+
+        self._set_credit_course_requirements()
+
         # Initially, the status should be None
         self.assert_grade_requirement_status(None, 0)
 
@@ -480,16 +493,20 @@ class CreditRequirementApiTests(CreditApiTestBase):
         self.assert_grade_requirement_status(None, 0)
         credit_request.delete()
 
-        # Set the requirement to "satisfied" and check that it's actually set
-        api.set_credit_requirement_status(self.user, self.course_key, "grade", "grade")
-        self.assert_grade_requirement_status('satisfied', 0)
+        # order of below two assertions matter as:
+        # `failed` to `satisfied` is allowed
+        # `satisfied` to `failed` is not allowed
 
-        # Set the requirement to "failed" and check that it's actually set
+        # 1. Set the requirement to "failed" and check that it's actually set
         api.set_credit_requirement_status(self.user, self.course_key, "grade", "grade", status="failed")
         self.assert_grade_requirement_status('failed', 0)
 
+        # 2. Set the requirement to "satisfied" and check that it's actually set
+        api.set_credit_requirement_status(self.user, self.course_key, "grade", "grade")
+        self.assert_grade_requirement_status('satisfied', 0)
+
         req_status = api.get_credit_requirement_status(self.course_key, username)
-        self.assertEqual(req_status[0]["status"], "failed")
+        self.assertEqual(req_status[0]["status"], "satisfied")
         self.assertEqual(req_status[0]["order"], 0)
 
         # make sure the 'order' on the 2nd requirement is set correctly (aka 1)
@@ -510,6 +527,32 @@ class CreditRequirementApiTests(CreditApiTestBase):
             name="i4x://edX/DemoX/edx-reverification-block/assessment_uuid"
         )
         self.assertEqual(req_status[0]["status"], "declined")
+
+    @ddt.data(
+        *CourseMode.CREDIT_ELIGIBLE_MODES
+    )
+    def test_set_credit_requirement_status_satisfied_to_failed(self, mode):
+        """
+        Test that if credit requirment status is set to `satisfied`, it
+        can not not be changed to `failed`
+        """
+        self.add_credit_course()
+
+        # Enroll user and verify enrollment.
+        self.enroll(self.user, self.course_key, mode)
+        self.assertTrue(CourseEnrollment.is_enrolled(self.user, self.course_key))
+        self.assertTrue(CourseEnrollment.enrollment_mode_for_user(self.user, self.course_key), (mode, True))
+
+        self._set_credit_course_requirements()
+
+        api.set_credit_requirement_status(self.user, self.course_key, "grade", "grade", status="satisfied")
+        self.assert_grade_requirement_status('satisfied', 0)
+
+        # try to set status to `failed`
+        api.set_credit_requirement_status(self.user, self.course_key, "grade", "grade", status="failed")
+
+        # status should not be changed to `failed`, rather should maintain already set status `satisfied`
+        self.assert_grade_requirement_status('satisfied', 0)
 
     @ddt.data(
         *CourseMode.CREDIT_ELIGIBLE_MODES
@@ -575,7 +618,6 @@ class CreditRequirementApiTests(CreditApiTestBase):
     @httpretty.activate
     @override_settings(
         ECOMMERCE_API_URL=TEST_API_URL,
-        ECOMMERCE_API_SIGNING_KEY=TEST_API_SIGNING_KEY,
         ECOMMERCE_SERVICE_WORKER_USERNAME=TEST_ECOMMERCE_WORKER
     )
     def test_satisfy_all_requirements(self):
@@ -622,7 +664,7 @@ class CreditRequirementApiTests(CreditApiTestBase):
         self.assertFalse(api.is_user_eligible_for_credit(user.username, self.course_key))
 
         # Satisfy the other requirement
-        with self.assertNumQueries(21):
+        with self.assertNumQueries(25):
             api.set_credit_requirement_status(
                 user,
                 self.course_key,
@@ -676,7 +718,7 @@ class CreditRequirementApiTests(CreditApiTestBase):
         # Delete the eligibility entries and satisfy the user's eligibility
         # requirement again to trigger eligibility notification
         CreditEligibility.objects.all().delete()
-        with self.assertNumQueries(16):
+        with self.assertNumQueries(17):
             api.set_credit_requirement_status(
                 user,
                 self.course_key,
@@ -1167,7 +1209,6 @@ class CreditProviderIntegrationApiTests(CreditApiTestBase):
 @skip_unless_lms
 @override_settings(
     ECOMMERCE_API_URL=TEST_API_URL,
-    ECOMMERCE_API_SIGNING_KEY=TEST_API_SIGNING_KEY,
     ECOMMERCE_SERVICE_WORKER_USERNAME=TEST_ECOMMERCE_WORKER
 )
 @ddt.ddt

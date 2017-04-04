@@ -15,7 +15,6 @@ import json
 from lazy import lazy
 import logging
 
-from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.timezone import now
 from eventtracking import tracker
@@ -277,8 +276,8 @@ class PersistentSubsectionGrade(DeleteGradesMixin, TimeStampedModel):
     usage_key = UsageKeyField(blank=False, max_length=255)
 
     # Information relating to the state of content when grade was calculated
-    subtree_edited_timestamp = models.DateTimeField('last content edit timestamp', blank=False)
-    course_version = models.CharField('guid of latest course version', blank=True, max_length=255)
+    subtree_edited_timestamp = models.DateTimeField(u'Last content edit timestamp', blank=True, null=True)
+    course_version = models.CharField(u'Guid of latest course version', blank=True, max_length=255)
 
     # earned/possible refers to the number of points achieved and available to achieve.
     # graded refers to the subset of all problems that are marked as being graded.
@@ -294,21 +293,6 @@ class PersistentSubsectionGrade(DeleteGradesMixin, TimeStampedModel):
 
     # track which blocks were visible at the time of grade calculation
     visible_blocks = models.ForeignKey(VisibleBlocks, db_column='visible_blocks_hash', to_field='hashed')
-
-    def _is_unattempted_with_score(self):
-        """
-        Return True if the object has a non-zero score, but has not been
-        attempted.  This is an inconsistent state, and needs to be cleaned up.
-        """
-        return self.first_attempted is None and any(field != 0.0 for field in (self.earned_all, self.earned_graded))
-
-    def clean(self):
-        """
-        If an grade has not been attempted, but was given a non-zero score,
-        raise a ValidationError.
-        """
-        if self._is_unattempted_with_score():
-            raise ValidationError("Unattempted problems cannot have a non-zero score.")
 
     @property
     def full_usage_key(self):
@@ -391,7 +375,6 @@ class PersistentSubsectionGrade(DeleteGradesMixin, TimeStampedModel):
         if attempted and not grade.first_attempted:
             grade.first_attempted = now()
             grade.save()
-        grade.full_clean()
         cls._emit_grade_calculated_event(grade)
         return grade
 
@@ -402,9 +385,7 @@ class PersistentSubsectionGrade(DeleteGradesMixin, TimeStampedModel):
         """
         cls._prepare_params_and_visible_blocks(params)
         cls._prepare_attempted_for_create(params, now())
-        grade = cls(**params)
-        grade.full_clean()
-        grade.save()
+        grade = cls.objects.create(**params)
         cls._emit_grade_calculated_event(grade)
         return grade
 
@@ -423,8 +404,6 @@ class PersistentSubsectionGrade(DeleteGradesMixin, TimeStampedModel):
         for params in grade_params_iter:
             cls._prepare_attempted_for_create(params, first_attempt_timestamp)
         grades = [PersistentSubsectionGrade(**params) for params in grade_params_iter]
-        for grade in grades:
-            grade.full_clean()
         grades = cls.objects.bulk_create(grades)
         for grade in grades:
             cls._emit_grade_calculated_event(grade)
@@ -529,7 +508,7 @@ class PersistentCourseGrade(DeleteGradesMixin, TimeStampedModel):
     course_id = CourseKeyField(blank=False, max_length=255)
 
     # Information relating to the state of content when grade was calculated
-    course_edited_timestamp = models.DateTimeField(u'Last content edit timestamp', blank=False)
+    course_edited_timestamp = models.DateTimeField(u'Last content edit timestamp', blank=True, null=True)
     course_version = models.CharField(u'Course content version identifier', blank=True, max_length=255)
     grading_policy_hash = models.CharField(u'Hash of grading policy', blank=False, max_length=255)
 

@@ -1,0 +1,56 @@
+## mako
+
+<%page expression_filter="h"/>
+
+<%namespace name='static' file='../static_content.html'/>
+
+<%!
+from django.utils.translation import ugettext as _
+%>
+
+<%static:require_module_async module_name="course_experience/js/course_outline_factory" class_name="CourseOutlineFactory">
+    CourseOutlineFactory('.block-tree');
+</%static:require_module_async>
+
+<div class="course-outline" id="main" tabindex="-1">
+    <ol class="block-tree" role="tree">
+        % for section in blocks.get('children') or []:
+            <li
+                aria-expanded="true"
+                class="outline-item focusable section"
+                id="${ section['id'] }"
+                role="treeitem"
+                tabindex="0"
+            >
+                <div class="section-name">
+                    <span>${ section['display_name'] }</span>
+                </div>
+                <ol class="outline-item focusable" role="group" tabindex="0">
+                    % for subsection in section.get('children') or []:
+                        <li
+                            class="subsection ${ 'current' if subsection['current'] else '' }"
+                            role="treeitem"
+                            tabindex="-1"
+                            aria-expanded="true"
+                        >
+                            <a
+                                class="outline-item focusable"
+                                href="${ subsection['lms_web_url'] }"
+                                id="${ subsection['id'] }"
+                            >
+                                <span>${ subsection['display_name'] }</span>
+                                <span class="sr-only">${ _("This is your last visited course section.") }</span>
+                                % if subsection['current']:
+                                    <span class="resume-right">
+                                        <b>${ _("Resume Course") }</b>
+                                        <span class="icon fa fa-arrow-circle-right" aria-hidden="true"></span>
+                                    </span>
+                                %endif
+                            </a>
+                        </li>
+                    % endfor
+                </ol>
+            </li>
+        % endfor
+    </ol>
+</div>

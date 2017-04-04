@@ -16,12 +16,12 @@ from xmodule.x_module import PREVIEW_VIEWS, STUDENT_VIEW, AUTHOR_VIEW
 from xmodule.contentstore.django import contentstore
 from xmodule.error_module import ErrorDescriptor
 from xmodule.exceptions import NotFoundError, ProcessingError
+from xmodule.partitions.partitions_service import PartitionService
 from xmodule.studio_editable import has_author_view
 from xmodule.services import SettingsService
 from xmodule.modulestore.django import modulestore, ModuleI18nService
 from xmodule.mixin import wrap_with_license
 from opaque_keys.edx.keys import UsageKey
-from opaque_keys.edx.asides import AsideUsageKeyV1, AsideUsageKeyV2
 from xmodule.x_module import ModuleSystem
 from xblock.runtime import KvsFieldData
 from xblock.django.request import webob_to_django_response, django_to_webob_request
@@ -57,17 +57,8 @@ def preview_handler(request, usage_key_string, handler, suffix=''):
     """
     usage_key = UsageKey.from_string(usage_key_string)
 
-    if isinstance(usage_key, (AsideUsageKeyV1, AsideUsageKeyV2)):
-        descriptor = modulestore().get_item(usage_key.usage_key)
-        for aside in descriptor.runtime.get_asides(descriptor):
-            if aside.scope_ids.block_type == usage_key.aside_type:
-                asides = [aside]
-                instance = aside
-                break
-    else:
-        descriptor = modulestore().get_item(usage_key)
-        instance = _load_preview_module(request, descriptor)
-        asides = []
+    descriptor = modulestore().get_item(usage_key)
+    instance = _load_preview_module(request, descriptor)
 
     # Let the module handle the AJAX
     req = django_to_webob_request(request)
@@ -91,7 +82,6 @@ def preview_handler(request, usage_key_string, handler, suffix=''):
         log.exception("error processing ajax call")
         raise
 
-    modulestore().update_item(descriptor, request.user.id, asides=asides)
     return webob_to_django_response(resp)
 
 
@@ -224,8 +214,22 @@ def _preview_module_system(request, descriptor, field_data):
             "i18n": ModuleI18nService,
             "settings": SettingsService(),
             "user": DjangoXBlockUserService(request.user),
+            "partitions": StudioPartitionService(course_id=course_id)
         },
     )
+
+
+class StudioPartitionService(PartitionService):
+    """
+    A runtime mixin to allow the display and editing of component visibility based on user partitions.
+    """
+    def get_user_group_id_for_partition(self, user, user_partition_id):
+        """
+        Override this method to return None, as the split_test_module calls this
+        to determine which group a user should see, but is robust to getting a return
+        value of None meaning that all groups should be shown.
+        """
+        return None
 
 
 def _load_preview_module(request, descriptor):
@@ -285,6 +289,7 @@ def _studio_wrap_xblock(xblock, view, frag, context, display_name_only=False):
             'can_edit': context.get('can_edit', True),
             'can_edit_visibility': context.get('can_edit_visibility', True),
             'can_add': context.get('can_add', True),
+            'can_move': context.get('can_move', True)
         }
         html = render_to_string('studio_xblock_wrapper.html', template_context)
         frag = wrap_fragment(frag, html)

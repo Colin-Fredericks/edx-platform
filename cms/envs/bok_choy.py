@@ -93,6 +93,8 @@ FEATURES['LICENSING'] = True
 FEATURES['ENABLE_MOBILE_REST_API'] = True  # Enable video bumper in Studio
 FEATURES['ENABLE_VIDEO_BUMPER'] = True  # Enable video bumper in Studio settings
 
+FEATURES['ENABLE_ENROLLMENT_TRACK_USER_PARTITION'] = True
+
 # Enable partner support link in Studio footer
 PARTNER_SUPPORT_EMAIL = 'partner-support@example.com'
 
@@ -103,6 +105,7 @@ FEATURES['ENABLE_SPECIAL_EXAMS'] = True
 
 # Point the URL used to test YouTube availability to our stub YouTube server
 YOUTUBE_PORT = 9080
+YOUTUBE['TEST_TIMEOUT'] = 5000
 YOUTUBE['API'] = "http://127.0.0.1:{0}/get_youtube_api/".format(YOUTUBE_PORT)
 YOUTUBE['METADATA_URL'] = "http://127.0.0.1:{0}/test_youtube/".format(YOUTUBE_PORT)
 YOUTUBE['TEXT_API']['url'] = "127.0.0.1:{0}/test_transcripts_youtube/".format(YOUTUBE_PORT)

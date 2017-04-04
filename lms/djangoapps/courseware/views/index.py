@@ -19,13 +19,21 @@ from django.shortcuts import redirect
 from courseware.url_helpers import get_redirect_url_for_global_staff
 from edxmako.shortcuts import render_to_response, render_to_string
 import logging
-import newrelic.agent
-import urllib
 
-from xblock.fragment import Fragment
+log = logging.getLogger("edx.courseware.views.index")
+
+import urllib
+import waffle
+
+from lms.djangoapps.gating.api import get_entrance_exam_score_ratio, get_entrance_exam_usage_key
+from lms.djangoapps.grades.new.course_grade import CourseGradeFactory
 from opaque_keys.edx.keys import CourseKey
 from openedx.core.djangoapps.lang_pref import LANGUAGE_KEY
 from openedx.core.djangoapps.user_api.preferences.api import get_user_preference
+from openedx.core.djangoapps.crawlers.models import CrawlersConfig
+from openedx.core.djangoapps.monitoring_utils import set_custom_metrics_for_course_key
+from openedx.features.enterprise_support.api import data_sharing_consent_required
+from request_cache.middleware import RequestCache
 from shoppingcart.models import CourseRegistrationCode
 from student.models import CourseEnrollment
 from student.views import is_course_blocked
@@ -34,6 +42,7 @@ from util.views import ensure_valid_course_key
 from xmodule.modulestore.django import modulestore
 from xmodule.x_module import STUDENT_VIEW
 from survey.utils import must_answer_survey
+from web_fragments.fragment import Fragment
 
 from ..access import has_access, _adjust_start_date_for_beta_testers
 from ..access_utils import in_preview_mode
@@ -41,9 +50,8 @@ from ..courses import get_studio_url, get_course_with_access
 from ..entrance_exams import (
     course_has_entrance_exam,
     get_entrance_exam_content,
-    get_entrance_exam_score,
     user_has_passed_entrance_exam,
-    user_must_complete_entrance_exam,
+    user_can_skip_entrance_exam,
 )
 from ..exceptions import Redirect
 from ..masquerade import setup_masquerade
@@ -52,7 +60,6 @@ from ..module_render import toc_for_course, get_module_for_descriptor
 from .views import get_current_child, registered_for_course
 
 
-log = logging.getLogger("edx.courseware.views.index")
 TEMPLATE_IMPORTS = {'urllib': urllib}
 CONTENT_DEPTH = 2
 
@@ -65,6 +72,7 @@ class CoursewareIndex(View):
     @method_decorator(ensure_csrf_cookie)
     @method_decorator(cache_control(no_cache=True, no_store=True, must_revalidate=True))
     @method_decorator(ensure_valid_course_key)
+    @method_decorator(data_sharing_consent_required)
     def get(self, request, course_id, chapter=None, section=None, position=None):
         """
         Displays courseware accordion and associated content.  If course, chapter,
@@ -95,13 +103,13 @@ class CoursewareIndex(View):
         self.url = request.path
 
         try:
-            self._init_new_relic()
+            set_custom_metrics_for_course_key(self.course_key)
             self._clean_position()
             with modulestore().bulk_operations(self.course_key):
                 self.course = get_course_with_access(request.user, 'load', self.course_key, depth=CONTENT_DEPTH)
                 self.is_staff = has_access(request.user, 'staff', self.course)
                 self._setup_masquerade_for_effective_user()
-                return self._get()
+                return self._get(request)
         except Redirect as redirect_error:
             return redirect(redirect_error.url)
         except UnicodeEncodeError:
@@ -127,12 +135,12 @@ class CoursewareIndex(View):
         # Set the user in the request to the effective user.
         self.request.user = self.effective_user
 
-    def _get(self):
+    def _get(self, request):
         """
         Render the index page.
         """
         self._redirect_if_needed_to_access_course()
-        self._prefetch_and_bind_course()
+        self._prefetch_and_bind_course(request)
 
         if self.course.has_children_at_depth(CONTENT_DEPTH):
             self._reset_section_to_exam_if_required()
@@ -167,13 +175,6 @@ class CoursewareIndex(View):
                     },
                 )
             )
-
-    def _init_new_relic(self):
-        """
-        Initialize metrics for New Relic so we can slice data in New Relic Insights
-        """
-        newrelic.agent.add_custom_parameter('course_id', unicode(self.course_key))
-        newrelic.agent.add_custom_parameter('org', unicode(self.course_key.org))
 
     def _clean_position(self):
         """
@@ -258,10 +259,7 @@ class CoursewareIndex(View):
         """
         Check to see if an Entrance Exam is required for the user.
         """
-        if (
-                course_has_entrance_exam(self.course) and
-                user_must_complete_entrance_exam(self.request, self.effective_user, self.course)
-        ):
+        if not user_can_skip_entrance_exam(self.effective_user, self.course):
             exam_chapter = get_entrance_exam_content(self.effective_user, self.course)
             if exam_chapter and exam_chapter.get_children():
                 exam_section = exam_chapter.get_children()[0]
@@ -324,13 +322,17 @@ class CoursewareIndex(View):
         if self.chapter:
             return self._find_block(self.chapter, self.section_url_name, 'section')
 
-    def _prefetch_and_bind_course(self):
+    def _prefetch_and_bind_course(self, request):
         """
         Prefetches all descendant data for the requested section and
         sets up the runtime, which binds the request user to the section.
         """
         self.field_data_cache = FieldDataCache.cache_for_descriptor_descendents(
-            self.course_key, self.effective_user, self.course, depth=CONTENT_DEPTH,
+            self.course_key,
+            self.effective_user,
+            self.course,
+            depth=CONTENT_DEPTH,
+            read_only=CrawlersConfig.is_crawler(request),
         )
 
         self.course = get_module_for_descriptor(
@@ -374,22 +376,23 @@ class CoursewareIndex(View):
         Returns and creates the rendering context for the courseware.
         Also returns the table of contents for the courseware.
         """
+        request = RequestCache.get_current_request()
         courseware_context = {
             'csrf': csrf(self.request)['csrf_token'],
-            'COURSE_TITLE': self.course.display_name_with_default_escaped,
             'course': self.course,
             'init': '',
             'fragment': Fragment(),
             'staff_access': self.is_staff,
-            'studio_url': get_studio_url(self.course, 'course'),
             'masquerade': self.masquerade,
-            'real_user': self.real_user,
+            'supports_preview_menu': True,
+            'studio_url': get_studio_url(self.course, 'course'),
             'xqa_server': settings.FEATURES.get('XQA_SERVER', "http://your_xqa_server.com"),
             'bookmarks_api_url': reverse('bookmarks'),
             'language_preference': self._get_language_preference(),
             'disable_optimizely': True,
             'section_title': None,
-            'sequence_title': None
+            'sequence_title': None,
+            'disable_accordion': waffle.flag_is_active(request, 'unified_course_view')
         }
         table_of_contents = toc_for_course(
             self.effective_user,
@@ -406,10 +409,7 @@ class CoursewareIndex(View):
         )
 
         # entrance exam data
-        if course_has_entrance_exam(self.course):
-            if getattr(self.chapter, 'is_entrance_exam', False):
-                courseware_context['entrance_exam_current_score'] = get_entrance_exam_score(self.request, self.course)
-                courseware_context['entrance_exam_passed'] = user_has_passed_entrance_exam(self.request, self.course)
+        self._add_entrance_exam_to_context(courseware_context)
 
         # staff masquerading data
         now = datetime.now(UTC())
@@ -433,7 +433,7 @@ class CoursewareIndex(View):
                 courseware_context['default_tab'] = self.section.default_tab
 
             # section data
-            courseware_context['section_title'] = self.section.display_name_with_default_escaped
+            courseware_context['section_title'] = self.section.display_name_with_default
             section_context = self._create_section_context(
                 table_of_contents['previous_of_active_section'],
                 table_of_contents['next_of_active_section'],
@@ -446,6 +446,17 @@ class CoursewareIndex(View):
                         .display_name_with_default
 
         return courseware_context
+
+    def _add_entrance_exam_to_context(self, courseware_context):
+        """
+        Adds entrance exam related information to the given context.
+        """
+        if course_has_entrance_exam(self.course) and getattr(self.chapter, 'is_entrance_exam', False):
+            courseware_context['entrance_exam_passed'] = user_has_passed_entrance_exam(self.effective_user, self.course)
+            courseware_context['entrance_exam_current_score'] = get_entrance_exam_score_ratio(
+                CourseGradeFactory().create(self.effective_user, self.course),
+                get_entrance_exam_usage_key(self.course),
+            )
 
     def _create_section_context(self, previous_of_active_section, next_of_active_section):
         """

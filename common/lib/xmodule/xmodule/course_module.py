@@ -675,6 +675,9 @@ class CourseFields(object):
         scope=Scope.settings,
     )
 
+    # Note: Although users enter the entrance exam minimum score
+    # as a percentage value, it is internally converted and stored
+    # as a decimal value less than 1.
     entrance_exam_minimum_score_pct = Float(
         display_name=_("Entrance Exam Minimum Score (%)"),
         help=_(
@@ -1337,23 +1340,6 @@ class CourseDescriptor(CourseFields, SequenceDescriptor, LicenseMixin):
         Returns the topics that have been configured for teams for this course, else None.
         """
         return self.teams_configuration.get('topics', None)
-
-    def get_user_partitions_for_scheme(self, scheme):
-        """
-        Retrieve all user partitions defined in the course for a particular
-        partition scheme.
-
-        Arguments:
-            scheme (object): The user partition scheme.
-
-        Returns:
-            list of `UserPartition`
-
-        """
-        return [
-            p for p in self.user_partitions
-            if p.scheme == scheme
-        ]
 
     def set_user_partitions_for_scheme(self, partitions, scheme):
         """
